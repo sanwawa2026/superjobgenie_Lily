@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SuperJobGenie</title>
+  <style>
+    body {
+      width: 340px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #090d16;
+      color: #f8fafc;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-badge {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .logo-text {
+      font-weight: 800;
+      font-size: 15px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .status-badge {
+      font-size: 10px;
+      background: #064e3b;
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-weight: 700;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .card {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border: 1px solid #1e293b;
+    }
+    .card-title {
+      font-size: 11px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .val {
+      font-size: 13px;
+      font-weight: 700;
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .desc {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+    .radar-card {
+      background: linear-gradient(135deg, #0b1329 0%, #171638 100%);
+      border: 1px solid #38bdf840;
+    }
+    .radar-badge {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .input-group {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .input-label {
+      font-size: 10px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    .input-field {
+      background: #090d16;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      outline: none;
+    }
+    .input-field:focus {
+      border-color: #38bdf8;
+    }
+    .actions-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary:hover {
+      opacity: 0.94;
+      transform: translateY(-1px);
+    }
+    .btn-radar {
+      background: linear-gradient(135deg, #0284c7, #4f46e5);
+      border: 1px solid #38bdf860;
+      color: white;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 8px;
+      transition: all 0.2s;
+    }
+    .btn-radar:hover {
+      filter: brightness(1.1);
+    }
+    .btn-secondary {
+      width: 100%;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+    .job-preview {
+      display: none;
+      background: #1e1b4b;
+      border: 1px solid #4338ca;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 11px;
+    }
+    .job-preview-title {
+      font-weight: 700;
+      color: #c7d2fe;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand-wrap">
+      <div class="logo-badge">🚀</div>
+      <div class="logo-text">SuperJobGenie</div>
+    </div>
+    <div class="status-badge" id="statusBadge">Active v3.1</div>
+  </div>
+
+  <!-- Detected Job Card -->
+  <div id="jobPreviewBox" class="job-preview">
+    <div class="job-preview-title" id="previewTitle">Target Job Detected</div>
+    <div id="previewMeta" style="color: #94a3b8; font-size: 10px; margin-top: 2px;"></div>
+  </div>
+
+  <!-- V2.0 Autonomous Scout Radar -->
+  <div class="card radar-card">
+    <div class="card-title">
+      <span style="display:flex; align-items:center; gap:5px;">
+        <span>🛰️ Autonomous Scout Radar</span>
+        <span class="radar-badge">V2.0 AI</span>
+      </span>
+      <span id="radarStatusText" style="color:#34d399; font-size:10px;">● Active Scanning</span>
+    </div>
+    <div class="desc" style="margin-top:2px; color:#cbd5e1;">
+      Monitors Indeed & LinkedIn global jobs 24/7. Dispatches instant alerts on matches ≥ 80%.
+    </div>
+    <div class="input-group">
+      <label class="input-label">Target Role / Industry</label>
+      <input type="text" id="radarRoleInput" class="input-field" value="Senior Backend / Full-Stack Engineer" />
+    </div>
+    <button class="btn-radar" id="testRadarBtn">
+      <span>📡 Test Scout Radar Alert</span>
+    </button>
+  </div>
+
+  <!-- In-Page HUD Mode -->
+  <div class="card">
+    <div class="card-title">
+      <span>Job Board HUD Engine</span>
+      <span style="color:#38bdf8;">Shadow DOM</span>
+    </div>
+    <div class="val">⚡ Auto-Popping HUD Ready</div>
+    <div class="desc">
+      Floating AI cockpit on LinkedIn, Indeed, Glassdoor, and Handshake with real-time skills fit & career pivot intelligence.
+    </div>
+  </div>
+
+  <!-- Dual Mode Bot Status -->
+  <div class="card" style="background:#070d1e; border: 1px solid #1e3a8a;">
+    <div class="card-title">
+      <span style="color:#38bdf8;">🤖 Dual-Engine Autonomous Bot</span>
+      <span style="color:#34d399; font-size:10px;">● Both Active</span>
+    </div>
+    <div style="font-size:11px; color:#cbd5e1; line-height:1.5; margin-top:4px;">
+      <div>• <strong>Foreground In-Page Bot</strong>: Floating HUD injects live match badges directly onto job listing cards.</div>
+      <div style="margin-top:3px;">• <strong>Background Scout Radar</strong>: 24/7 automated cruise with instant desktop notifications for top matches.</div>
+    </div>
+  </div>
+
+  <div class="actions-box">
+    <button class="btn-primary" id="scanPageJobsBtn" style="background: linear-gradient(135deg, #0284c7, #4f46e5); box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);">
+      ⚡ Scan & Match Page Jobs
+    </button>
+    <button class="btn-secondary" id="openInPageModal">
+      🎯 Open In-Page HUD Cockpit
+    </button>
+    <button class="btn-secondary" id="openLocalDashboard">
+      🌐 Open Web Executive Dashboard
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

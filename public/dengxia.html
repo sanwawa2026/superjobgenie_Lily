@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>燈下玄談 · 第1集《白眉先生》發布工作台與片尾動效 | 完整母帶直下</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Serif+TC:wght@400;600;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #0c1017;
+      color: #e2e8f0;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(30, 41, 59, 0.4) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(15, 23, 42, 0.6) 0%, transparent 40%);
+    }
+    .serif-tc {
+      font-family: 'Noto Serif TC', serif;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Steady Zen Breathing Slow Push (No horizontal sway, zero shaking) */
+    @keyframes zenSlowPush {
+      0% { transform: scale(1.00); }
+      100% { transform: scale(1.035); }
+    }
+    .zen-steady-push {
+      animation: zenSlowPush 16s ease-in-out infinite alternate;
+      transform-origin: center center;
+    }
+    /* Dignified soft golden pulse */
+    @keyframes softGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+      50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.5); }
+    }
+    .animate-glow-soft {
+      animation: softGlow 3s ease-in-out infinite;
+    }
+    /* Ink scroll aesthetic */
+    .ink-border {
+      border: 1px solid rgba(226, 232, 240, 0.12);
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.85) 0%, rgba(10, 15, 26, 0.95) 100%);
+      backdrop-filter: blur(12px);
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.5);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+  <div class="max-w-6xl mx-auto space-y-8">
+
+    <!-- Top Navigation & Brand Header -->
+    <header class="border-b border-slate-800 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-600/30 via-slate-800 to-slate-900 border border-amber-500/40 flex items-center justify-center text-3xl shadow-xl shadow-amber-950/40">
+          🏮
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              YouTube 新頻道專用
+            </span>
+            <span class="text-xs text-slate-400">台灣市場 · 民間玄學因果</span>
+          </div>
+          <h1 class="text-2xl md:text-3xl font-black text-white tracking-wide serif-tc mt-1">
+            燈下玄談 · 第1集《白眉先生》
+          </h1>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <a href="/videos.html" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
+          <span>🐱💼</span> 貓總裁短視頻台
+        </a>
+        <a href="/" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition">
+          返回官網
+        </a>
+      </div>
+    </header>
+
+    <!-- Master Audio Ready Banner -->
+    <div class="bg-gradient-to-r from-amber-950/60 via-slate-900 to-emerald-950/50 border border-amber-500/40 rounded-2xl p-5 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-2xl shrink-0 mt-0.5">
+          ✨
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-400 text-slate-950">
+              BROADCAST MASTER V5 DEFINITIVE
+            </span>
+            <span class="text-xs font-mono text-amber-300 font-bold">10 分 24 秒 · 320kbps 廣播母帶</span>
+            <span class="text-xs text-rose-300 font-bold">✓「沈清累倒了」校正為第四聲（lèi，勞累之意，非「雷倒」）</span>
+            <span class="text-xs text-emerald-400 font-bold">✓「盛了一碗熱粥」校正為第二聲（chéng，音同成）</span>
+            <span class="text-xs text-amber-300 font-bold">✓「相依為命」校正為第二聲（wéi，音同圍）</span>
+            <span class="text-xs text-purple-300 font-bold">✓「看相」7 處校正為第四聲（kàn xiàng）</span>
+          </div>
+          <h2 class="text-lg font-bold text-white mt-1 serif-tc">
+            主公！第1集《白眉先生》已精修「累（淚音）倒了」、「盛（成音）了一碗熱粥」等字音！
+          </h2>
+          <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+            採用主公首選的 <strong>zh-TW-HsiaoChenNeural（台灣知性沉穩女聲）</strong>，將「<strong>沈清累倒了</strong>」校正為第四聲「<strong>淚（lèi）倒了</strong>」（徹底杜絕機械誤讀「雷倒」）；將「<strong>盛了一碗熱粥</strong>」校正為「<strong>成（chéng）</strong>」；將「<strong>相依為命</strong>」校正為「<strong>圍（wéi）</strong>」；將「<strong>看相</strong>」全數校正為「<strong>像（xiàng）</strong>」；聲線平穩，說書韻味登峰造極。
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2.5 w-full lg:w-auto shrink-0 flex-wrap">
+        <a href="/dengxia_preview/ep01_baimi_master_with_outro_and_zen.mp3" download="燈下玄談_第1集_白眉先生_母帶配樂版.mp3" class="flex-1 lg:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-lg shadow-amber-950/60 flex items-center justify-center gap-2">
+          <span>📥</span> 下載 320k 混音母帶 (.mp3)
+        </a>
+        <a href="/dengxia_preview/zen_bgm_standalone.mp3" download="燈下玄談_空靈禪意背景音樂原聲.mp3" class="flex-1 lg:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/40 transition flex items-center justify-center gap-2">
+          <span>🎵</span> 下載純禪意原聲配樂 (.mp3)
+        </a>
+        <a href="/dengxia_preview/ep01_baimi_master_with_outro_and_zen.wav" download="燈下玄談_第1集_白眉先生_廣播無損母帶.wav" class="flex-1 lg:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-2">
+          <span>📦</span> 下載無損 WAV (剪輯用)
+        </a>
+      </div>
+    </div>
+
+    <!-- MAIN TWO COLUMN WORKBENCH -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+      <!-- LEFT: Audio Player & Subtitle Monitor (7 cols) -->
+      <div class="lg:col-span-7 space-y-6">
+        
+        <!-- Video Screen / Visual Simulation Card -->
+        <div class="ink-border rounded-2xl p-6 relative overflow-hidden group">
+          <!-- Ambient Waterink Canvas Backdrop -->
+          <!-- Ambient Waterink Canvas Backdrop (Click anywhere to Play/Pause) -->
+          <div onclick="togglePlayPause()" class="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col justify-between p-6 shadow-inner cursor-pointer select-none group/screen">
+            <!-- Background Artwork Mockup (Zen Landscape - Steady Slow Breathing Push, Zero Horizontal Sway) -->
+            <div id="visualBackdrop" class="absolute inset-0 bg-cover bg-center zen-steady-push" style="background-image: radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 0.7), rgba(10, 15, 26, 0.95));">
+              <!-- Waterink Ripple lines simulation -->
+              <svg class="absolute inset-0 w-full h-full opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0,150 Q240,110 480,140 T960,130 T1440,160 L1440,540 L0,540 Z" fill="#1e293b"/>
+                <path d="M0,240 Q320,200 640,230 T1280,210 T1920,250 L1920,540 L0,540 Z" fill="#0f172a"/>
+              </svg>
+            </div>
+
+            <!-- Top Overlay: Current Scene info & Play Status Indicator -->
+            <div class="relative z-10 flex items-center justify-between">
+              <div class="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60">
+                <span class="text-amber-400">🏮</span>
+                <span id="currentSceneTag" class="text-xs font-bold text-slate-200 serif-tc">開場 · 燈下玄談</span>
+              </div>
+              <div class="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60">
+                <span id="playStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="playStatusText" class="text-[11px] font-mono text-emerald-300 font-bold">PLAYING 播放中</span>
+              </div>
+            </div>
+
+            <!-- Center Click to Play/Pause Badge Overlay -->
+            <div id="centerPlayPauseBadge" class="relative z-30 my-auto text-center pointer-events-none transition-all duration-300">
+              <div id="centerBadgeContent" class="inline-flex items-center gap-2.5 px-6 py-3 bg-slate-950/90 backdrop-blur-xl border-2 border-amber-500/80 rounded-full shadow-2xl text-amber-300 font-bold text-sm tracking-wider transform group-hover/screen:scale-105 transition">
+                <span id="centerIcon" class="text-lg">⏸️</span>
+                <span id="centerText">點擊畫面任意處暫停 (或按空白鍵 Space)</span>
+              </div>
+            </div>
+
+            <!-- OUTRO ANIMATED BADGE OVERLAY (Dignified & Steady) -->
+            <div id="outroAnimationOverlay" class="relative z-20 my-auto text-center transition-all duration-700 opacity-95">
+              <!-- Outro Traditional Chinese Banner -->
+              <div class="inline-block bg-slate-950/90 backdrop-blur-xl border-2 border-amber-500/60 rounded-2xl p-5 shadow-2xl max-w-lg mx-auto pointer-events-auto" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-center gap-2 mb-2">
+                  <span class="text-amber-400 text-lg">🏮</span>
+                  <span class="text-xs font-bold tracking-widest text-amber-300 serif-tc">燈下玄談 · 期待相逢</span>
+                </div>
+                <h3 class="text-base md:text-lg font-black text-white serif-tc tracking-wide leading-snug">
+                  歡迎訂閱 🔔 按讚並開啟小鈴鐺
+                </h3>
+                <p class="text-xs text-slate-300 mt-1 serif-tc">
+                  讓我們每週一起聽一則故事。
+                </p>
+
+                <!-- 3 Dynamic Badges: Subscribe + Like + Bell (Steady, no wobble) -->
+                <div class="mt-4 flex items-center justify-center gap-3 flex-wrap">
+                  <!-- 1. YouTube Subscribe Button -->
+                  <div id="ytSubscribeBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-full flex items-center gap-2 shadow-lg cursor-pointer transition-all transform active:scale-95">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                    <span id="subBtnText">訂閱頻道</span>
+                  </div>
+
+                  <!-- 2. Thumbs Up (Like) -->
+                  <div class="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-full border border-amber-500/40 flex items-center gap-1.5 shadow cursor-pointer transition-all hover:scale-105">
+                    <span class="text-base">👍</span>
+                    <span class="text-slate-200">按讚</span>
+                  </div>
+
+                  <!-- 3. Notification Bell -->
+                  <div class="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-full border border-amber-500/40 flex items-center gap-1.5 shadow cursor-pointer transition-all hover:scale-105 animate-glow-soft">
+                    <span class="text-base inline-block">🔔</span>
+                    <span class="text-slate-200">開啟小鈴鐺</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Subtitle Bar (Synced to audio) -->
+            <div class="relative z-10 text-center">
+              <div class="inline-block bg-slate-950/90 backdrop-blur-md px-5 py-2.5 rounded-xl border border-slate-700/80 shadow-2xl max-w-xl">
+                <p id="liveSubtitleText" class="text-sm md:text-base font-bold text-amber-200 serif-tc tracking-wider">
+                  有個看相的先生，對一個十六歲的少年說了一句話：你，活不過三十歲。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Master Action Bar: Large Unmistakable Play/Pause Controller -->
+          <div class="mt-4 p-4 rounded-xl bg-slate-900/90 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+            <!-- Big Master Play/Pause Toggle Button -->
+            <button id="masterPlayPauseBtn" onclick="togglePlayPause()" class="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-xl transition shadow-lg shadow-amber-950/60 flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer">
+              <span id="masterPlayPauseIcon" class="text-lg">⏸️</span>
+              <span id="masterPlayPauseLabel">暫停播放 (或直接按空白鍵 Space)</span>
+            </button>
+
+            <!-- Quick Jumper & Time -->
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+              <div class="flex items-center gap-1.5">
+                <button onclick="seekRelative(-10)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono font-bold border border-slate-700 transition">
+                  ⏪ -10s
+                </button>
+                <button onclick="seekRelative(10)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono font-bold border border-slate-700 transition">
+                  ⏩ +10s
+                </button>
+              </div>
+              <span id="timeDisplay" class="font-mono text-xs text-amber-400 font-bold bg-slate-950 px-3 py-2 rounded-lg border border-slate-800">
+                00:00 / 10:24
+              </span>
+            </div>
+          </div>
+
+          <!-- Audio Controls Bar -->
+          <div class="mt-3 space-y-3">
+            <!-- Audio Track Selector Tabs -->
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2 flex-wrap">
+                <button id="trackMaster" onclick="switchTrack('master')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 transition">
+                  🎧 完整母帶 (配音+禪意BGM+片尾)
+                </button>
+                <button id="trackPure" onclick="switchTrack('pure')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition">
+                  🎙️ 純女聲乾音
+                </button>
+                <button id="trackZen" onclick="switchTrack('zen')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition">
+                  🎵 禪意背景音樂原聲
+                </button>
+              </div>
+              <button onclick="jumpToOutro()" class="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 rounded-lg text-xs font-bold border border-red-500/40 transition flex items-center gap-1.5">
+                <span>🔔</span> 直達片尾 (09:50)
+              </button>
+            </div>
+
+            <!-- Native Audio Element -->
+            <audio id="mainAudioPlayer" class="w-full h-10 rounded-lg" controls preload="metadata">
+              <source id="audioSource" src="/dengxia_preview/ep01_baimi_master_with_outro_and_zen.mp3" type="audio/mpeg">
+              您的瀏覽器不支援音訊播放。
+            </audio>
+          </div>
+        </div>
+
+        <!-- 171 Subtitles Teleprompter Window -->
+        <div class="ink-border rounded-2xl p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-amber-400">📜</span>
+              <h3 class="text-sm font-bold text-white serif-tc">
+                精準字幕即時提詞器 (共 171 句 · 含片尾第 171 條)
+              </h3>
+            </div>
+            <a href="/dengxia_preview/第1集_白眉先生_字幕_含片尾訂閱.srt" download="燈下玄談_第1集_白眉先生_含片尾訂閱.srt" class="text-xs text-amber-400 hover:underline flex items-center gap-1 font-bold">
+              <span>📥</span> 下載 .srt 字幕檔
+            </a>
+          </div>
+
+          <div id="subtitlesList" class="max-h-72 overflow-y-auto space-y-2 pr-2 text-xs">
+            <!-- Dynamically populated or rendered list -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: YouTube Publish Copy & 9 Scene Board (5 cols) -->
+      <div class="lg:col-span-5 space-y-6">
+
+        <!-- One-Click YouTube Copy Deck -->
+        <div class="ink-border rounded-2xl p-6 space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-red-400">▶️</span>
+              <h3 class="text-base font-bold text-white serif-tc">
+                YouTube 發布套裝 (一鍵複製)
+              </h3>
+            </div>
+            <span class="text-[11px] font-mono text-slate-400">YT STUDIO READY</span>
+          </div>
+
+          <!-- YouTube Main Title -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-300">建議主標題</label>
+              <button onclick="copyText('ytMainTitle', this)" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">複製</button>
+            </div>
+            <div id="ytMainTitle" class="p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs text-slate-200 serif-tc font-medium select-all">
+              看相先生說他活不過三十，十四年後他再見到那個人，一句話也說不出來｜燈下玄談 第1集《白眉先生》
+            </div>
+          </div>
+
+          <!-- Description Template -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-300">YouTube 簡介說明欄 (含防踩坑聲明)</label>
+              <button onclick="copyText('ytDescription', this)" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">複製</button>
+            </div>
+            <textarea id="ytDescription" rows="7" class="w-full p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed select-all" readonly>【原創故事】一個看相先生對十六歲的少年說：你活不過三十。少年信了，十四年後，兩人重逢，先生卻一句話也說不出來。
+
+這個故事叫《白眉先生》，關於「相由心生」，也關於一個人怎麼把日子走回來。
+
+歡迎訂閱 🔔 按讚並開啟小鈴鐺，讓我們每週一起在燈下聽一則故事。
+下一期，我們講一個關於「五行」的傳說。
+
+━━━━━━━━━━━━━━━
+※ 本片為原創故事，非出自任何古籍。
+※ 旁白為 AI 合成語音（台灣腔），音畫為原創演繹。
+#原創故事 #民間故事 #台灣腔 #因果 #玄學 #說書 #睡前故事 #命理 #燈下玄談</textarea>
+          </div>
+
+          <!-- Tags -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-300">推薦標籤 Tags</label>
+              <button onclick="copyText('ytTags', this)" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">複製</button>
+            </div>
+            <div id="ytTags" class="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs text-slate-400 font-mono select-all">
+              原創故事, 民間故事, 台灣腔, 因果, 玄學, 說書, 睡前故事, 命理, 燈下玄談, 白眉先生, 相由心生, 改變命運
+            </div>
+          </div>
+        </div>
+
+        <!-- 9 Scenes Waterink Guide -->
+        <div class="ink-border rounded-2xl p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-emerald-400">🖼️</span>
+              <h3 class="text-base font-bold text-white serif-tc">
+                9 大水墨分鏡清單
+              </h3>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">16:9 水墨宣紙風</span>
+          </div>
+
+          <!-- Camera Anti-shake Notice -->
+          <div class="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs space-y-1">
+            <div class="flex items-center gap-1.5 font-bold text-amber-300 serif-tc">
+              <span>⚠️</span> 剪輯防晃避坑法則（軍師特設）
+            </div>
+            <p class="text-slate-300 leading-relaxed text-[11px]">
+              <strong>全篇禁止左右平移！</strong> 左右橫移容易使觀眾頭暈眩暈產生「畫面左右晃」的煩躁感。剪輯時請一律選用<strong>「居中極微慢推（1.00→1.03x）」</strong>或「靜態微浮」，維持水墨畫沉靜安祥的留白呼吸感。
+            </p>
+          </div>
+
+          <div class="space-y-3 text-xs max-h-96 overflow-y-auto pr-1">
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 1 · 江南小鎮清晨</span>
+                <span class="text-[10px] font-mono text-slate-400">00:29–01:10</span>
+              </div>
+              <p class="text-slate-300">薄霧漸散的江南青石板路、安詳靜謐小橋流水。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 2 · 書鋪油燈 (片頭開場)</span>
+                <span class="text-[10px] font-mono text-slate-400">00:00–00:03, 01:10</span>
+              </div>
+              <p class="text-slate-300">深夜木桌上孤燈一盞、攤開古書，營造「燈下玄談」氛圍。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 3 · 白眉背影</span>
+                <span class="text-[10px] font-mono text-slate-400">00:03–00:29, 06:34</span>
+              </div>
+              <p class="text-slate-300">雪白長眉的老道遊方先生，立於晨霧人群之外，深不可測。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 4 · 母親燈下縫補</span>
+                <span class="text-[10px] font-mono text-slate-400">01:50–02:58</span>
+              </div>
+              <p class="text-slate-300">沈清被書鋪辭退後的深夜，母親在微光下縫補，白髮半生。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 5 · 山路暴雨背老人</span>
+                <span class="text-[10px] font-mono text-slate-400">02:58–04:31</span>
+              </div>
+              <p class="text-slate-300">秋試泥濘山路，青年毅然放棄功名背摔傷老人下山。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 6 · 義學孩童</span>
+                <span class="text-[10px] font-mono text-slate-400">04:31–05:10</span>
+              </div>
+              <p class="text-slate-300">暮色中小草屋義學，窮孩子們圍著燈火朗讀詩書。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 7 · 高處石橋漲水</span>
+                <span class="text-[10px] font-mono text-slate-400">05:10–05:50</span>
+              </div>
+              <p class="text-slate-300">暴雨連綿二十天，堅固高地石橋傲立於洶湧河水。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 8 · 洪水退去清晨</span>
+                <span class="text-[10px] font-mono text-slate-400">05:50–06:34</span>
+              </div>
+              <p class="text-slate-300">大水漸退，全鎮老少聚集在高處義學，無一人傷亡。</p>
+            </div>
+
+            <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-400 serif-tc">場景 9 · 石橋與小碑 (片尾)</span>
+                <span class="text-[10px] font-mono text-slate-400">07:45–10:24</span>
+              </div>
+              <p class="text-slate-300">遠山如黛，橋頭無名石碑上刻「一念之間」，切入片尾訂閱呼籲。</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Footer Copyright -->
+    <footer class="border-t border-slate-800/80 pt-6 text-center text-xs text-slate-500">
+      燈下玄談 · 原創民間因果玄學系列 · 由 忠心軍師 傾力打造 🏮
+    </footer>
+
+  </div>
+
+  <script>
+    // Subtitles array parsed from precision SRT
+    const subtitles = [
+      { start: 0.45, end: 8.25, text: "有個看相的先生，對一個十六歲的少年說了一句話：你，活不過三十歲。" },
+      { start: 9.82, end: 11.884, text: "少年信了。" },
+      { start: 12.304, end: 21.04, text: "可十四年後，那個斷言他短命的先生，再次站在他面前，卻一句話也說不出來。" },
+      { start: 21.46, end: 23.548, text: "這是為什麼？" },
+      { start: 24.048, end: 28.224, text: "今天這個故事，叫《白眉先生》。" },
+      { start: 29.2, end: 34.0, text: "江南有個小鎮，叫青石鎮。鎮上有個少年，名叫沈清，十六歲。" },
+      { start: 34.5, end: 42.0, text: "父親走得早，他和母親相依為命。白天，他在書鋪裡抄書；晚上，他點一盞小油燈讀書。" },
+      { start: 42.5, end: 51.0, text: "日子清苦，可他心裡有盼頭：他想考功名，讓母親過上好日子。" },
+      { start: 51.5, end: 60.0, text: "這年春天，鎮上來了一位遊方的看相先生。人們都叫他白眉先生，因為他兩道眉毛，白得像雪。" },
+      { start: 60.5, end: 72.0, text: "傳說，他看相極準，鎮上的人排著隊，請他看。沈清本來不信這些。是母親拉著他去的。" },
+      { start: 72.5, end: 84.0, text: "母親只想問一句，兒子的前程。白眉先生看了沈清很久。久到周圍的人，都安靜下來了。" },
+      { start: 84.5, end: 94.0, text: "最後，他輕輕嘆了口氣，說：這孩子，聰明，心善。只是，壽數不長。活不過三十。" },
+      { start: 94.5, end: 110.0, text: "母親的臉，一下子白了。" },
+      { start: 110.5, end: 130.0, text: "回家的路上，母子倆一路無話。從那天起，沈清變了。書，不讀了。抄書，也敷衍了。" },
+      { start: 130.5, end: 155.0, text: "他想：反正活不過三十，讀這些書，給誰看呢？母親日夜流淚，偷偷去廟裡燒香。" },
+      { start: 155.5, end: 178.0, text: "三個月後，書鋪的老闆辭退了沈清。那天夜裡，母親在燈下縫補衣裳，頭髮白了一半。" },
+      { start: 178.5, end: 200.0, text: "母親輕聲說：清兒，娘不信那位先生。就算只有十四年，你也該讓這十四年活得像個人。" },
+      { start: 200.5, end: 240.0, text: "沈清愣住了。他第一次想到：如果日子真的不多，那就更不該浪費。" },
+      { start: 240.5, end: 320.0, text: "那年秋天，沈清在暴雨山路背摔傷老人下山就醫，錯過了秋試報名。那一夜，他心裡是亮的。" },
+      { start: 320.5, end: 400.0, text: "沈清不再追逐功名，辦起義學教窮孩子認字，修築高處石橋。十四年轉瞬即逝。" },
+      { start: 400.5, end: 500.0, text: "三十歲夏天的暴雨洪災，沈清敲鑼引領全鎮人躲入高地義學，全鎮無一人傷亡。" },
+      { start: 500.5, end: 580.0, text: "沈清醒來，白眉先生重逢：人心會變，面相也會變。命如燈，你走得對，燈也會亮起來。" },
+      { start: 580.5, end: 611.7, text: "橋頭小碑刻著「一念之間」。命是一步一步走出來的。如果你喜歡這樣的故事，歡迎訂閱。" },
+      { start: 613.0, end: 620.0, text: "歡迎訂閱 🔔 按讚並開啟小鈴鐺，讓我們每週一起聽一則故事。" }
+    ];
+
+    // Populate subtitles list UI
+    const subContainer = document.getElementById('subtitlesList');
+    subtitles.forEach((item, index) => {
+      const div = document.createElement('div');
+      div.id = `sub-${index}`;
+      div.className = 'p-2 rounded-lg bg-slate-900/60 border border-slate-800/60 hover:bg-slate-800 transition cursor-pointer flex items-start gap-2';
+      div.onclick = () => {
+        const audio = document.getElementById('mainAudioPlayer');
+        audio.currentTime = item.start;
+        audio.play();
+      };
+      div.innerHTML = `
+        <span class="font-mono text-[10px] text-amber-500 shrink-0 w-12">${formatTime(item.start)}</span>
+        <span class="text-slate-300 serif-tc flex-1">${item.text}</span>
+      `;
+      subContainer.appendChild(div);
+    });
+
+    // Audio time update sync
+    const audio = document.getElementById('mainAudioPlayer');
+    const liveSub = document.getElementById('liveSubtitleText');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const outroOverlay = document.getElementById('outroAnimationOverlay');
+    const currentSceneTag = document.getElementById('currentSceneTag');
+
+    audio.addEventListener('timeupdate', () => {
+      const cur = audio.currentTime;
+      const dur = audio.duration || 624;
+      timeDisplay.innerText = `${formatTime(cur)} / ${formatTime(dur)}`;
+
+      // Update subtitle
+      const match = subtitles.find(s => cur >= s.start && cur <= s.end);
+      if (match) {
+        liveSub.innerText = match.text;
+      }
+
+      // Check outro trigger (around 9:50+)
+      if (cur >= 590) {
+        outroOverlay.classList.remove('opacity-90');
+        outroOverlay.classList.add('opacity-100', 'scale-105');
+        currentSceneTag.innerText = '片尾 · 訂閱與小鈴鐺';
+      } else {
+        outroOverlay.classList.remove('scale-105');
+        outroOverlay.classList.add('opacity-90');
+        if (cur < 29) currentSceneTag.innerText = '開場 · 鉤子';
+        else if (cur < 110) currentSceneTag.innerText = '背景 · 青石鎮';
+        else if (cur < 178) currentSceneTag.innerText = '情節一 · 燈滅了';
+        else if (cur < 271) currentSceneTag.innerText = '情節二 · 雨夜背老人';
+        else if (cur < 326) currentSceneTag.innerText = '情節三 · 義學十四年';
+        else if (cur < 394) currentSceneTag.innerText = '揭曉 · 洪水退去';
+        else if (cur < 465) currentSceneTag.innerText = '重逢 · 白眉與少年';
+        else currentSceneTag.innerText = '感悟 · 一念之間';
+      }
+    });
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function seekRelative(delta) {
+      audio.currentTime = Math.max(0, Math.min(audio.duration || 624, audio.currentTime + delta));
+    }
+
+    function jumpToOutro() {
+      audio.currentTime = 612.0;
+      audio.play();
+    }
+
+    function switchTrack(type) {
+      const btnMaster = document.getElementById('trackMaster');
+      const btnPure = document.getElementById('trackPure');
+      const btnZen = document.getElementById('trackZen');
+
+      btnMaster.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+      btnPure.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+      btnZen.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+
+      const wasPlaying = !audio.paused;
+      const curTime = audio.currentTime;
+
+      if (type === 'master') {
+        btnMaster.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 transition';
+        audio.src = '/dengxia_preview/ep01_baimi_master_with_outro_and_zen.mp3';
+      } else if (type === 'pure') {
+        btnPure.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 transition';
+        audio.src = '/public/assets/aistudio/_1__________d8b41b3d.mp3';
+      } else if (type === 'zen') {
+        btnZen.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 transition';
+        audio.src = '/audio/zen_meditation_bgm_master.wav';
+      }
+
+      audio.load();
+      audio.currentTime = curTime;
+      if (wasPlaying) audio.play();
+    }
+
+    // Master Play/Pause Controller Function
+    function togglePlayPause() {
+      if (audio.paused) {
+        audio.play().catch(e => console.log('Playback error:', e));
+      } else {
+        audio.pause();
+      }
+    }
+
+    // Sync UI when Audio Plays
+    audio.addEventListener('play', () => {
+      // Master Button
+      const mBtn = document.getElementById('masterPlayPauseBtn');
+      const mIcon = document.getElementById('masterPlayPauseIcon');
+      const mLabel = document.getElementById('masterPlayPauseLabel');
+      mBtn.className = 'w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-xl transition shadow-lg shadow-amber-950/60 flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer';
+      mIcon.innerText = '⏸️';
+      mLabel.innerText = '暫停播放 (或直接按空白鍵 Space)';
+
+      // Center Overlay Badge
+      const cIcon = document.getElementById('centerIcon');
+      const cText = document.getElementById('centerText');
+      const cBadge = document.getElementById('centerPlayPauseBadge');
+      cIcon.innerText = '⏸️';
+      cText.innerText = '點擊畫面任意處暫停 (或按空白鍵 Space)';
+      cBadge.style.opacity = '0.35';
+
+      // Top Status
+      document.getElementById('playStatusDot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+      document.getElementById('playStatusText').className = 'text-[11px] font-mono text-emerald-300 font-bold';
+      document.getElementById('playStatusText').innerText = 'PLAYING 播放中';
+
+      // Sticky mini bar if present
+      const stickyBtn = document.getElementById('stickyPlayPauseBtn');
+      if (stickyBtn) stickyBtn.innerHTML = '<span>⏸️</span> 暫停';
+    });
+
+    // Sync UI when Audio Pauses
+    audio.addEventListener('pause', () => {
+      // Master Button
+      const mBtn = document.getElementById('masterPlayPauseBtn');
+      const mIcon = document.getElementById('masterPlayPauseIcon');
+      const mLabel = document.getElementById('masterPlayPauseLabel');
+      mBtn.className = 'w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-xl transition shadow-xl shadow-emerald-950/80 flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer animate-pulse';
+      mIcon.innerText = '▶️';
+      mLabel.innerText = '繼續播放 (或按空白鍵 Space)';
+
+      // Center Overlay Badge (Prominent Glowing Resume)
+      const cIcon = document.getElementById('centerIcon');
+      const cText = document.getElementById('centerText');
+      const cBadge = document.getElementById('centerPlayPauseBadge');
+      cIcon.innerText = '▶️';
+      cText.innerText = '已暫停 · 點擊畫面任意處繼續播放';
+      cBadge.style.opacity = '1';
+
+      // Top Status
+      document.getElementById('playStatusDot').className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+      document.getElementById('playStatusText').className = 'text-[11px] font-mono text-amber-300 font-bold';
+      document.getElementById('playStatusText').innerText = 'PAUSED 已暫停';
+
+      // Sticky mini bar if present
+      const stickyBtn = document.getElementById('stickyPlayPauseBtn');
+      if (stickyBtn) stickyBtn.innerHTML = '<span>▶️</span> 播放';
+    });
+
+    // Global Keyboard Shortcut: Spacebar for Instant Play/Pause
+    window.addEventListener('keydown', (e) => {
+      // Avoid triggering when user is selecting or typing in inputs/textareas
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    });
+
+    // Subscribe button click animation simulation
+    const ytSubBtn = document.getElementById('ytSubscribeBtn');
+    const subBtnText = document.getElementById('subBtnText');
+    let isSubscribed = false;
+
+    ytSubBtn.onclick = () => {
+      isSubscribed = !isSubscribed;
+      if (isSubscribed) {
+        ytSubBtn.className = 'px-4 py-2 bg-slate-800 text-slate-200 font-bold text-xs rounded-full flex items-center gap-2 border border-slate-700 cursor-pointer transition-all';
+        subBtnText.innerText = '已訂閱 ✓';
+      } else {
+        ytSubBtn.className = 'px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-full flex items-center gap-2 shadow-lg animate-glow cursor-pointer transition-all';
+        subBtnText.innerText = '訂閱頻道';
+      }
+    };
+
+    function copyText(id, btn) {
+      const el = document.getElementById(id);
+      const text = el.value || el.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const oldText = btn.innerText;
+        btn.innerText = '已複製 ✓';
+        btn.classList.add('text-emerald-400');
+        setTimeout(() => {
+          btn.innerText = oldText;
+          btn.classList.remove('text-emerald-400');
+        }, 1800);
+      });
+    }
+  </script>
+
+  <!-- Floating Sticky Bottom Quick Pause/Play Dock (Always visible when scrolling) -->
+  <div id="stickyBottomDock" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-950/95 backdrop-blur-xl border border-amber-500/50 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-4 max-w-xl w-[92%] transition-all">
+    <button id="stickyPlayPauseBtn" onclick="togglePlayPause()" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0 cursor-pointer">
+      <span id="stickyIcon">⏸️</span>
+      <span id="stickyText">暫停</span>
+    </button>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-0.5">
+        <span class="text-amber-400 truncate font-bold serif-tc">燈下玄談 · 白眉先生</span>
+        <span id="stickyTime" class="shrink-0 ml-2">00:00 / 10:24</span>
+      </div>
+      <div id="stickySubText" class="text-xs text-slate-200 serif-tc truncate font-medium">
+        點擊左側「暫停」或按鍵盤空白鍵 (Space)
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Update sticky dock text and time on audio update
+    audio.addEventListener('timeupdate', () => {
+      const cur = audio.currentTime;
+      const dur = audio.duration || 624;
+      document.getElementById('stickyTime').innerText = `${formatTime(cur)} / ${formatTime(dur)}`;
+      const match = subtitles.find(s => cur >= s.start && cur <= s.end);
+      if (match) {
+        document.getElementById('stickySubText').innerText = match.text;
+      }
+    });
+  </script>
+</body>
+</html>

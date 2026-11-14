@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareerCat 视频下载与发布工作台 | SuperJobGenie</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #0b0f19;
+      color: #e2e8f0;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+  <div class="max-w-5xl mx-auto space-y-8">
+    
+    <!-- Header -->
+    <header class="border-b border-amber-500/30 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">🐱💼</span>
+          <h1 class="text-2xl md:text-3xl font-black text-amber-400 tracking-wider">
+            CareerCat 24/7 貓咪職缺情報局
+          </h1>
+        </div>
+        <p class="text-sm text-slate-400 mt-1">成精貓 Mia × 台灣新竹軟體工程師專場 · 專屬成片直下工作台</p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <a href="/dengxia.html" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-lg text-sm transition hover:scale-105 shadow-lg shadow-amber-950/50 flex items-center gap-1.5">
+          <span>🏮</span> 燈下玄談 發布工作台
+        </a>
+        <a href="https://chromewebstore.google.com/detail/ghhibfhcclohbgfekckljkifkkpfkmne?utm_source=item-share-cb" target="_blank" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black rounded-lg text-sm transition hover:scale-105 shadow-lg shadow-emerald-950/50 flex items-center gap-1.5">
+          <span>🚀</span> Chrome 官方已公开发布 v5.0.0
+        </a>
+        <a href="/" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm border border-slate-700 transition">
+          返回 SuperJobGenie 官網
+        </a>
+      </div>
+    </header>
+
+    <!-- Chrome Web Store v5.0.0 Live Announcement Banner -->
+    <div class="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-indigo-950/80 border-2 border-emerald-400/80 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-2xl shrink-0">
+          🎉
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-400 text-slate-950">
+              CHROME STORE 公开发布
+            </span>
+            <span class="text-xs font-mono text-emerald-300 font-bold">VERSION 5.0.0 LIVE</span>
+          </div>
+          <h3 class="text-lg font-black text-white mt-1">恭贺主公！SuperJobGenie 官方扩展 v5.0.0 已全网生效通过审核！</h3>
+          <p class="text-xs text-slate-300 mt-0.5">全功能深度 DOM 解析、Telegram 巡航与 Cover Letter 自动生成就位，短视频矩阵即可全面引流！</p>
+        </div>
+      </div>
+      <a href="https://chromewebstore.google.com/detail/ghhibfhcclohbgfekckljkifkkpfkmne?utm_source=item-share-cb" target="_blank"
+         class="px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition shrink-0 flex items-center gap-1.5 shadow-md">
+        <span>直达 Chrome 商店页</span>
+        <span>↗</span>
+      </a>
+    </div>
+
+    <!-- Why Not on GitHub Notice -->
+    <div class="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 md:p-5 flex items-start gap-3">
+      <span class="text-2xl mt-0.5">💡</span>
+      <div class="text-sm leading-relaxed text-amber-200/90">
+        <strong class="text-amber-300 font-bold">关于 GitHub 报错「Request contains an invalid argument」与下载说明：</strong><br>
+        GitHub API 对单次代码提交有严格的 25MB 大小拦截。刚才报错正是因为录屏原片体积过大触发了 GitHub 的安全墙。军师已在后台全面更新了 <code class="text-amber-300">.gitignore</code> 过滤大文件，现在您再点 GitHub 即可顺利同步代码！而<strong>视频成片已直存于本站高速静态服务中，直接点击下方大按钮即可 1 秒免翻墙极速下载！</strong>
+      </div>
+    </div>
+
+    <!-- MASTERPIECE: Lord Tang's Cat CEO ATS Dead On Arrival 11s Spotlight -->
+    <div class="bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border-2 border-amber-400 rounded-2xl p-6 shadow-2xl relative overflow-hidden mb-8">
+      <div class="absolute top-0 right-0 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>👑</span> 主公亲创震撼神作 · 西装猫总裁 11秒 ATS 死穴破局
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player with Switcher -->
+        <div class="w-full sm:w-[260px] shrink-0 flex flex-col items-center gap-2">
+          <div id="catVideoFrame" class="w-full bg-black rounded-2xl overflow-hidden border-2 border-amber-400 shadow-2xl aspect-[9/16] relative flex items-center justify-center transition-all duration-300">
+            <!-- Optional Scanlines / HUD Overlay -->
+            <div id="catOverlayEffect" class="absolute inset-0 pointer-events-none z-10 opacity-40 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.4)_50%)] bg-[length:100%_4px]"></div>
+            <video id="catCeoVideoPlayer" controls autoplay loop playsinline class="w-full h-full object-cover">
+              <source id="catCeoVideoSource" src="/cat_ceo_ats_with_viral_bgm_11s.mp4" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
+          </div>
+          <!-- BGM Switcher Pills -->
+          <div class="flex items-center gap-1.5 w-full justify-center text-[11px] font-mono">
+            <button onclick="switchCatCeoVideo('/cat_ceo_ats_with_viral_bgm_11s.mp4', this)" class="cat-tab px-2.5 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg transition">🎵 爆款鼓点BGM</button>
+            <button onclick="switchCatCeoVideo('/cat_ceo_ats_with_cyber_bgm_11s.mp4', this)" class="cat-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎧 赛博Lo-Fi</button>
+            <button onclick="switchCatCeoVideo('/cat_ceo_ats_dead_on_arrival_11s.mp4', this)" class="cat-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎙️ 纯人声</button>
+          </div>
+          <!-- Visual Frame Vibe Switcher -->
+          <div class="flex items-center gap-1.5 w-full justify-center text-[10px] font-mono pt-1">
+            <span class="text-slate-400">战术视效:</span>
+            <button onclick="setCatVibe('crt', this)" class="vibe-tab px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/50 rounded transition font-bold">🖥️ 显像管CRT</button>
+            <button onclick="setCatVibe('cyber', this)" class="vibe-tab px-2 py-0.5 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded transition">⚡ 赛博战情室</button>
+            <button onclick="setCatVibe('clean', this)" class="vibe-tab px-2 py-0.5 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded transition">✨ 极简黑金</button>
+          </div>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span class="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL 1080×1920
+              </span>
+              <span class="px-2.5 py-0.5 bg-orange-500/20 text-orange-300 border border-orange-500/40 rounded-full text-xs font-bold mono">
+                11.3 秒 · 完播率王牌时长
+              </span>
+              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-bold mono">
+                大师级配乐混音 · 踩点淡出
+              </span>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-black text-white tracking-wide flex items-center gap-2">
+              🐱💼《Your Resume Was Dead On Arrival》猫总裁暴击版
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-2">
+              神仙级金句文案：<br>
+              <em class="text-amber-300 font-mono text-xs block mt-1 bg-slate-950/80 p-2.5 rounded-lg border border-amber-500/30">
+                "Applying for a job today feels like throwing a message in a bottle into the ocean, except the ocean is an ATS bot programmed by a sadist, and your resume was dead on arrival."
+              </em>
+              军师已混入律动踩点背景音乐，人声 100% 突出，垫乐自然淡出，听感与高级感倍增！
+            </p>
+          </div>
+
+          <!-- Download Action - 3 Options -->
+          <div class="space-y-2 pt-1">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <a href="/cat_ceo_ats_with_viral_bgm_11s.mp4" download="Cat_CEO_ATS_Viral_BGM_11s.mp4"
+                 class="py-3 px-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-950/60 text-xs sm:text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ⬇️ 强烈推荐：下载 爆款BGM混音版 (.mp4)
+              </a>
+
+              <a href="/cat_ceo_ats_with_cyber_bgm_11s.mp4" download="Cat_CEO_ATS_Cyber_BGM_11s.mp4"
+                 class="py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-amber-300 border border-amber-500/30 text-center font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ⬇️ 下载 赛博Lo-Fi质感版 (.mp4)
+              </a>
+            </div>
+
+            <a href="/cat_ceo_ats_dead_on_arrival_11s.mp4" download="Cat_CEO_ATS_Pure_Voice_11s.mp4"
+               class="block py-2 text-center text-xs text-slate-400 hover:text-slate-200 underline transition">
+              或下载：主公原汁原味纯人声无BGM版 (.mp4)
+            </a>
+          </div>
+
+          <!-- Copy-Paste Kit for YouTube Shorts -->
+          <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
+            <div>
+              <div class="flex justify-between items-center text-slate-400 mb-1">
+                <span>🎯 YouTube Shorts / TikTok 专属爆款标题：</span>
+                <button onclick="navigator.clipboard.writeText('Why your resume was dead on arrival... 💀🐱 #shorts #jobhunt #career #resume #ats'); alert('已复制标题！')" class="text-amber-400 hover:underline">一键复制</button>
+              </div>
+              <p class="text-slate-200 select-all font-mono font-medium">Why your resume was dead on arrival... 💀🐱 #shorts #jobhunt #career #resume #ats</p>
+            </div>
+            <div class="border-t border-slate-800/80 pt-2 flex justify-between items-center">
+              <span class="text-slate-400">💡 军师兵法：</span>
+              <span class="text-amber-300/90 text-[11px]">11.3 秒极速痛击，完播率拉满！可在频道置顶安全指引：直接在 Chrome 应用店搜 SuperJobGenie 破局！</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- MASTERPIECE EPISODE 4: Cat CEO PIP Nightmare -->
+    <div class="bg-gradient-to-r from-red-950/60 via-slate-900 to-rose-950/60 border-2 border-red-400 rounded-2xl p-6 shadow-2xl relative overflow-hidden mb-8">
+      <div class="absolute top-0 right-0 bg-gradient-to-r from-red-400 to-rose-500 text-slate-950 text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>👑</span> 主公重磅续作 · 猫总裁第4弹 · PIP 噩梦降临
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player with Switcher -->
+        <div class="w-full sm:w-[260px] shrink-0 flex flex-col items-center gap-2">
+          <div class="w-full bg-black rounded-2xl overflow-hidden border-2 border-red-400 shadow-2xl aspect-[9/16] relative flex items-center justify-center">
+            <video id="catPipVideoPlayer" controls autoplay loop playsinline class="w-full h-full object-cover">
+              <source id="catPipVideoSource" src="/cat_ceo_pip_with_viral_bgm_32s.mp4" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
+          </div>
+          <!-- BGM Switcher Pills -->
+          <div class="flex items-center gap-1.5 w-full justify-center text-[11px] font-mono">
+            <button onclick="switchCatPipVideo('/cat_ceo_pip_with_viral_bgm_32s.mp4', this)" class="pip-tab px-2.5 py-1 bg-red-500 text-slate-950 font-bold rounded-lg transition">🎵 爆款鼓点BGM</button>
+            <button onclick="switchCatPipVideo('/cat_ceo_pip_with_cyber_bgm_32s.mp4', this)" class="pip-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎧 赛博Lo-Fi</button>
+            <button onclick="switchCatPipVideo('/cat_ceo_pip_nightmare_32s.mp4', this)" class="pip-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎙️ 纯人声</button>
+          </div>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span class="px-2.5 py-0.5 bg-red-500/20 text-red-300 border border-red-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL 1080×1920
+              </span>
+              <span class="px-2.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full text-xs font-bold mono">
+                32.1 秒 · 深度剧情版
+              </span>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-black text-white tracking-wide flex items-center gap-2">
+              🐱💼《PIP Nightmare》猫总裁第4弹
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-2">
+              神仙级毒舌金句：<br>
+              <em class="text-red-300 font-mono text-xs block mt-1 bg-slate-950/80 p-2.5 rounded-lg border border-red-500/30">
+                "Manager: 'We're putting you on a Performance Improvement Plan to help you grow!' Bro, a PIP isn't a growth plan. It's a 30-day countdown timer for your severance package."
+              </em>
+              猫总裁现场教学：把 PIP 这种“裁员前奏”直接揭穿，教你如何开启“求职多线程”模式，反杀大厂！
+            </p>
+          </div>
+
+          <!-- Download Action -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <a href="/cat_ceo_pip_with_viral_bgm_32s.mp4" download="Cat_CEO_PIP_Viral_BGM_32s.mp4"
+               class="py-3 px-4 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-400 hover:to-rose-400 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-red-950/60 text-xs sm:text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载：爆款鼓点BGM混音版 (.mp4)
+            </a>
+
+            <a href="/cat_ceo_pip_with_cyber_bgm_32s.mp4" download="Cat_CEO_PIP_Cyber_BGM_32s.mp4"
+               class="py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-red-300 border border-red-500/30 text-center font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载：赛博Lo-Fi质感版 (.mp4)
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MASTERPIECE EPISODE 3: Cat CEO Interview Nightmare -->
+    <div class="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border-2 border-emerald-400 rounded-2xl p-6 shadow-2xl relative overflow-hidden mb-8">
+      <div class="absolute top-0 right-0 bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>👑</span> 主公重磅续作 · 猫总裁第3弹 · 7轮面试与心理拷问
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player with Switcher -->
+        <div class="w-full sm:w-[260px] shrink-0 flex flex-col items-center gap-2">
+          <div class="w-full bg-black rounded-2xl overflow-hidden border-2 border-emerald-400 shadow-2xl aspect-[9/16] relative flex items-center justify-center">
+            <video id="catNightmareVideoPlayer" controls autoplay loop playsinline class="w-full h-full object-cover">
+              <source id="catNightmareVideoSource" src="/assets/aistudio/_____________f9b94f35.mp4" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
+          </div>
+          <!-- BGM Switcher Pills -->
+          <div class="flex items-center gap-1.5 w-full justify-center text-[11px] font-mono">
+            <button onclick="switchCatNightmareVideo('/assets/aistudio/_____________f9b94f35.mp4', this)" class="nightmare-tab px-2.5 py-1 bg-emerald-500 text-slate-950 font-bold rounded-lg transition">🎵 官方高音质成片</button>
+            <button onclick="switchCatNightmareVideo('/cat_ceo_ats_with_viral_bgm_11s.mp4', this)" class="nightmare-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎧 ATS 11s混音</button>
+          </div>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL 1080×1920
+              </span>
+              <span class="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded-full text-xs font-bold mono">
+                29.1 秒 · 深度剧情版
+              </span>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-black text-white tracking-wide flex items-center gap-2">
+              🐱💼《Work-Life Balance & 11PM Slack》猫总裁第3弹
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-2">
+              神仙级毒舌金句：<br>
+              <em class="text-emerald-300 font-mono text-xs block mt-1 bg-slate-950/80 p-2.5 rounded-lg border border-emerald-500/30">
+                "We prioritize your mental health! Translation: you have the freedom to balance answering Slack messages at 11 PM while crying in your bathroom."
+              </em>
+              猫总裁现场教学：面试官满嘴“平衡”，其实平衡的是他们放鸽子的手速！
+            </p>
+          </div>
+
+          <!-- Download Action -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <a href="/assets/aistudio/_____________f9b94f35.mp4" download="Cat_Boss_Vol2_Mental_Health_11pm_Slack.mp4"
+               class="py-3 px-4 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 text-xs sm:text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载：官方高音质成片 (.mp4)
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MASTERPIECE EPISODE 2: Cat CEO Ghost Jobs & Bali Vacation -->
+    <div class="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 border-2 border-purple-400 rounded-2xl p-6 shadow-2xl relative overflow-hidden mb-8">
+      <div class="absolute top-0 right-0 bg-gradient-to-r from-purple-400 to-pink-500 text-slate-950 text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>👑</span> 主公重磅续作 · 猫总裁第2弹 · 幽灵职位与巴厘岛度假
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player with Switcher -->
+        <div class="w-full sm:w-[260px] shrink-0 flex flex-col items-center gap-2">
+          <div class="w-full bg-black rounded-2xl overflow-hidden border-2 border-purple-400 shadow-2xl aspect-[9/16] relative flex items-center justify-center">
+            <video id="catBaliVideoPlayer" controls autoplay loop playsinline class="w-full h-full object-cover">
+              <source id="catBaliVideoSource" src="/cat_ceo_bali_with_viral_bgm_15s.mp4" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
+          </div>
+          <!-- BGM Switcher Pills -->
+          <div class="flex items-center gap-1.5 w-full justify-center text-[11px] font-mono">
+            <button onclick="switchCatBaliVideo('/cat_ceo_bali_with_viral_bgm_15s.mp4', this)" class="bali-tab px-2.5 py-1 bg-purple-500 text-slate-950 font-bold rounded-lg transition">🎵 爆款鼓点BGM</button>
+            <button onclick="switchCatBaliVideo('/cat_ceo_bali_with_cyber_bgm_15s.mp4', this)" class="bali-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎧 赛博Lo-Fi</button>
+            <button onclick="switchCatBaliVideo('/cat_ceo_ghost_jobs_bali_15s.mp4', this)" class="bali-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition">🎙️ 纯人声</button>
+          </div>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span class="px-2.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL 1080×1920
+              </span>
+              <span class="px-2.5 py-0.5 bg-pink-500/20 text-pink-300 border border-pink-500/40 rounded-full text-xs font-bold mono">
+                14.9 秒 · 幽默讽刺拉满
+              </span>
+              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-bold mono">
+                大师级配乐混音 · 踩点淡出
+              </span>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-black text-white tracking-wide flex items-center gap-2">
+              🐱💼《Work-Life Balance & Bali》猫总裁第2弹
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-2">
+              神仙级毒舌金句：<br>
+              <em class="text-purple-300 font-mono text-xs block mt-1 bg-slate-950/80 p-2.5 rounded-lg border border-purple-500/30">
+                "Interviewers talk about 'work-life balance,' but the only thing they balance is ghosting 500 applicants a day while posted on vacation in Bali."
+              </em>
+              军师已为第 2 弹混入律动踩点背景音乐与赛博 Lo-Fi 垫乐，听感与高级感倍增！
+            </p>
+          </div>
+
+          <!-- Download Action - 3 Options -->
+          <div class="space-y-2 pt-1">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <a href="/cat_ceo_bali_with_viral_bgm_15s.mp4" download="Cat_CEO_Bali_Viral_BGM_15s.mp4"
+                 class="py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/60 text-xs sm:text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ⬇️ 下载：爆款鼓点BGM混音版 (.mp4)
+              </a>
+
+              <a href="/cat_ceo_bali_with_cyber_bgm_15s.mp4" download="Cat_CEO_Bali_Cyber_BGM_15s.mp4"
+                 class="py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-purple-300 border border-purple-500/30 text-center font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ⬇️ 下载：赛博Lo-Fi质感版 (.mp4)
+              </a>
+            </div>
+
+            <a href="/cat_ceo_ghost_jobs_bali_15s.mp4" download="Cat_CEO_Ghost_Jobs_Bali_Pure_Voice.mp4"
+               class="block py-2 text-center text-xs text-slate-400 hover:text-slate-200 underline transition">
+              或下载：原汁原味纯人声无BGM版 (.mp4)
+            </a>
+          </div>
+
+          <!-- Copy-Paste Kit for YouTube Shorts - Focused on Lead-in to Cover Letter -->
+          <div class="bg-slate-950/80 p-3.5 rounded-xl border border-red-800 text-xs space-y-2">
+            <div>
+              <div class="flex justify-between items-center text-slate-400 mb-1">
+                <span>🎯 YouTube Shorts / TikTok 专属引流标题：</span>
+                <button onclick="navigator.clipboard.writeText('Stop writing Cover Letters manually. Let AI do it in 5 seconds. 🤖🐱 #shorts #jobhunt #career #ai #coverletter'); alert('已复制标题！')" class="text-red-400 hover:underline">一键复制</button>
+              </div>
+              <p class="text-slate-200 select-all font-mono font-medium">Stop writing Cover Letters manually. Let AI do it in 5 seconds. 🤖🐱 #shorts #jobhunt #career #ai #coverletter</p>
+            </div>
+            <div class="border-t border-red-800/80 pt-2 flex justify-between items-center">
+              <span class="text-slate-400">💡 军师引流兵法：</span>
+              <span class="text-red-300/90 text-[11px]">本视频为 Cover Letter 生成器引流！引导用户：在工具中上传简历，点击 Cover Letter 按钮，5 秒生成顶级求职信！</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: 18s Flagship 3-Platform Triumph Shorts -->
+    <div class="bg-gradient-to-r from-amber-950/40 via-purple-950/40 to-slate-900 border-2 border-amber-400/90 rounded-2xl p-6 shadow-2xl relative overflow-hidden mb-6">
+      <div class="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>🏆</span> 3大平台实测震撼成片 · 18秒旗舰首发版
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player -->
+        <div class="w-full sm:w-[240px] shrink-0 bg-black rounded-2xl overflow-hidden border-2 border-amber-400 shadow-2xl aspect-[9/16] relative flex items-center justify-center">
+          <video controls autoplay loop playsinline class="w-full h-full object-cover">
+            <source src="/superjobgenie_shorts_18s_master.mp4" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL 1080×1920
+              </span>
+              <span class="px-2.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-full text-xs font-bold mono">
+                GLASSDOOR · LINKEDIN · INDEED 实测
+              </span>
+            </div>
+            <h2 class="text-2xl font-black text-white tracking-wide flex items-center gap-2">
+              ⚡《Stop Pasting JDs into ChatGPT》18秒高转化爆款
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-1">
+              截取主公三大网站实操原汁原味高光时刻：
+              <span class="text-amber-300 font-bold">Glassdoor 83% 匹配</span> ➔ 
+              <span class="text-sky-300 font-bold">LinkedIn 秒吐定制 Cover Letter</span> ➔ 
+              <span class="text-purple-300 font-bold">Indeed 岗位无缝顺滑切换</span> ➔ 
+              <span class="text-emerald-300 font-bold">100% 本地隐私防护</span>。
+              直击手动复制粘贴痛点，为 Chrome 商店持续注入真实求职者流量！
+            </p>
+          </div>
+
+          <!-- Download Action -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <a href="/superjobgenie_shorts_18s_master.mp4" download="SuperJobGenie_Shorts_18s_Master.mp4"
+               class="py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-950/60 text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载 18秒 旗舰成片 (.mp4)
+            </a>
+          </div>
+
+          <!-- Copy-Paste Kit for YouTube Shorts -->
+          <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
+            <div>
+              <div class="flex justify-between items-center text-slate-400 mb-1">
+                <span>🎯 YouTube Shorts 官方爆款标题：</span>
+                <button onclick="navigator.clipboard.writeText('Stop pasting job posts into ChatGPT... do this instead! ⚡ #shorts #jobhunt #career #resume'); alert('已复制标题！')" class="text-amber-400 hover:underline">一键复制</button>
+              </div>
+              <p class="text-slate-200 select-all font-mono font-medium">Stop pasting job posts into ChatGPT... do this instead! ⚡ #shorts #jobhunt #career #resume</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: Masterpiece 4s / 12s Google TTS Voiced Loop -->
+    <div class="bg-gradient-to-r from-red-950/40 via-amber-950/40 to-slate-900 border-2 border-red-500/80 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+      <div class="absolute top-0 right-0 bg-red-600 text-white text-[11px] font-black px-4 py-1.5 rounded-bl-xl tracking-wider uppercase flex items-center gap-1 shadow-md">
+        <span>⚡</span> GOOGLE TTS 配音 + 爆款洗脑 BGM 现已完成
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-center">
+        <!-- Vertical Player -->
+        <div class="w-full sm:w-[240px] shrink-0 bg-black rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-2xl aspect-[9/16] relative flex items-center justify-center">
+          <video controls autoplay loop playsinline class="w-full h-full object-cover">
+            <source src="/superjobgenie_shorts_12s_clean.mp4" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+
+        <!-- Details & Direct Downloads -->
+        <div class="flex-1 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/40 rounded-full text-xs font-bold mono">
+                9:16 VERTICAL SHORTS
+              </span>
+              <span class="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-xs font-bold mono">
+                GOOGLE TTS + VIRAL BEAT
+              </span>
+            </div>
+            <h2 class="text-2xl font-black text-white tracking-wide flex items-center gap-2">
+              🔥 主公原汁原味大白话 · 4秒/12秒 洗脑成片
+            </h2>
+            <p class="text-sm text-slate-300 leading-relaxed mt-1">
+              台词严格对齐视觉卡片：
+              <span class="text-amber-300 font-bold">"Looking for a job?" (0s)</span> ➔ 
+              <span class="text-amber-300 font-bold">"Need a cover letter?" (1s)</span> ➔ 
+              <span class="text-amber-300 font-bold">"SuperJobGenie!" (2s)</span> ➔ 
+              <span class="text-amber-300 font-bold">"100% Free!" (3s)</span>。
+              搭配强节奏电音鼓点，洗脑催眠，完播率拉满！
+            </p>
+          </div>
+
+          <!-- Download Buttons -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <a href="/superjobgenie_shorts_12s_clean.mp4" download="SuperJobGenie_Shorts_12s_Clean_Loop.mp4"
+               class="py-3 px-4 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-[0.98] text-white text-center font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-red-950/60 text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载 12秒 最佳发布版 (3倍无缝循环)
+            </a>
+
+            <a href="/superjobgenie_shorts_4s_voiced.mp4" download="SuperJobGenie_Shorts_4s_Voiced_Loop.mp4"
+               class="py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 text-center font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-600 text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              ⬇️ 下载 4秒 原味精准循环单片
+            </a>
+          </div>
+
+          <!-- Copy-Paste Kit for YouTube Shorts -->
+          <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
+            <div>
+              <div class="flex justify-between items-center text-slate-400 mb-1">
+                <span>🎯 YouTube Shorts 爆款标题：</span>
+                <button onclick="navigator.clipboard.writeText('Looking for a Job? Need a Cover Letter? SuperJobGenie is 100% Free! 🔥 #Shorts #JobSearch #ChromeExtension'); alert('已复制标题！')" class="text-amber-400 hover:underline">一键复制</button>
+              </div>
+              <p class="text-slate-200 select-all font-mono font-medium">Looking for a Job? Need a Cover Letter? SuperJobGenie is 100% Free! 🔥 #Shorts #JobSearch #ChromeExtension</p>
+            </div>
+            <div class="border-t border-slate-800/80 pt-2 flex justify-between items-center">
+              <span class="text-slate-400">💡 军师发布秘诀：</span>
+              <span class="text-amber-300/90 text-[11px]">4秒极速吸睛，12秒完播率突破 150%，YouTube 推荐算法最爱这种无限循环短片！</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Card 1: 20s FAST SHORTS (THE WINNER) -->
+      <div class="bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-900 border-2 border-amber-400/80 rounded-2xl p-5 shadow-2xl flex flex-col relative overflow-hidden">
+        <div class="absolute top-0 right-0 bg-amber-400 text-slate-950 text-[10px] font-black px-3 py-1 rounded-bl-lg tracking-wider uppercase">
+          🔥 强烈推荐首发 · 完播率爆款
+        </div>
+
+        <div class="flex items-center justify-between mb-3 mt-1">
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-xs font-bold mono">
+              9:16 VERTICAL
+            </span>
+            <span class="text-xs text-amber-400 font-bold">19.5 秒 (≤20s) · 爆款洗脑音乐</span>
+          </div>
+        </div>
+
+        <h2 class="text-lg font-black text-white mb-1 flex items-center gap-2">
+          ⚡ 20秒极速黄金版 Shorts (洗脑神曲+猫猫人声)
+        </h2>
+        <p class="text-xs text-slate-400 mb-3">🎵 洗脑上头BGM！片头猫猫「好饿喔」大声清晰 ➔ 7s高速雷达 ➔ CSV空白处金色醒目领取卡 ➔ 胜利喵叫收尾</p>
+
+        <!-- Video Player -->
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-amber-500/30 flex justify-center aspect-[9/16] max-h-[400px]">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/shorts_cat_hsinchu_20s_fast.mp4" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+
+        <!-- Download Action -->
+        <a href="/shorts_cat_hsinchu_20s_fast.mp4" download="shorts_cat_mia_hsinchu_20s.mp4"
+           class="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 text-center font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-900/40 text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          ⬇️ 极速下载 20秒爆款版 (.mp4)
+        </a>
+
+        <!-- Copy-Paste Kit -->
+        <div class="mt-4 space-y-2 bg-slate-950/70 p-3 rounded-xl border border-amber-500/20 text-xs">
+          <div>
+            <div class="flex justify-between items-center text-slate-400 mb-1">
+              <span class="text-amber-300 font-bold">20s 专属爆款标题：</span>
+              <button onclick="navigator.clipboard.writeText('成精貓餓到講人話！親自上Indeed幫竹科工程師找工作 🐱💼 #shorts #成精貓 #新竹工程師 #求職神器'); alert('已复制标题！')" class="text-amber-400 hover:underline">一键复制</button>
+            </div>
+            <p class="text-slate-200 select-all font-medium leading-relaxed">成精貓餓到講人話！親自上Indeed幫竹科工程師找工作 🐱💼 #shorts #成精貓 #新竹工程師 #求職神器</p>
+          </div>
+          <div class="border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">
+            🎯 <strong>算法解析</strong>：20秒内时长完播率通常可超 90%，触发 Shorts 智能循环与大流量池！
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: 42s Standard Shorts -->
+      <div class="bg-slate-900/90 border border-slate-700/60 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-xs font-bold mono">
+              9:16 VERTICAL
+            </span>
+            <span class="text-xs text-slate-400">42 秒 · 3.6 MB</span>
+          </div>
+          <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-semibold">
+            完整剧情版
+          </span>
+        </div>
+
+        <h2 class="text-lg font-bold text-white mb-1">📱 42秒剧情完整版 Shorts</h2>
+        <p class="text-xs text-slate-400 mb-3">包含开柜子找零食、Indeed 细致巡航、Excel 报表完整展示</p>
+
+        <!-- Video Player -->
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-slate-800 flex justify-center aspect-[9/16] max-h-[400px]">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/shorts_cat_hsinchu_engineer.mp4" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+
+        <!-- Download Action -->
+        <a href="/shorts_cat_hsinchu_engineer.mp4" download="shorts_cat_mia_hsinchu_42s.mp4"
+           class="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 text-center font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-600 text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          ⬇️ 下载 42秒剧情完整版
+        </a>
+
+        <!-- Copy-Paste Kit -->
+        <div class="mt-4 space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs">
+          <div class="flex justify-between items-center text-slate-400 mb-1">
+            <span>推荐置顶留言：</span>
+            <button onclick="navigator.clipboard.writeText('🐱 Mia 幫大家整理的新竹外商軟體缺 Excel 都在這！Chrome 搜尋「SuperJobGenie」即可免費自動抓職缺～'); alert('已复制留言！')" class="text-slate-300 hover:underline">一键复制</button>
+          </div>
+          <p class="text-slate-300 select-all font-medium leading-relaxed">🐱 Mia 幫大家整理的新竹外商軟體缺 Excel 都在這！Chrome 搜尋「SuperJobGenie」即可免費自動抓職缺～</p>
+        </div>
+      </div>
+
+      <!-- Card 3: Horizontal 16:9 Long Video -->
+      <div class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded text-xs font-bold mono">
+              16:9 HORIZONTAL
+            </span>
+            <span class="text-xs text-emerald-400 font-bold">26.5 秒 (≤30s) · 爆款洗脑音乐</span>
+          </div>
+          <span class="text-xs bg-red-600/30 text-red-300 px-2.5 py-0.5 rounded-full border border-red-500/40 font-semibold">
+            YouTube 正片
+          </span>
+        </div>
+
+        <h2 class="text-lg font-bold text-white mb-1">🖥️ 橫屏 26 秒極速精華長片 (洗脑神曲+猫猫人声)</h2>
+        <p class="text-xs text-slate-400 mb-3">30秒內完播！片头猫猫人声 ➔ 欢快洗脑BGM ➔ CSV空白處自帶醒目大字「表格哪裡領 & 插件下載網址」</p>
+
+        <!-- Video Player -->
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-slate-800 flex justify-center aspect-video max-h-[400px] items-center">
+          <video controls preload="metadata" class="w-full h-auto object-contain">
+            <source src="/youtube_mia_hsinchu_jobs.mp4" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+
+        <!-- Download Action -->
+        <a href="/youtube_mia_hsinchu_jobs.mp4" download="youtube_mia_hsinchu_jobs_1080p.mp4"
+           class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white text-center font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/40 text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          ⬇️ 下载 16:9 高清横屏片
+        </a>
+
+        <!-- Copy-Paste Kit -->
+        <div class="mt-4 space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs">
+          <div>
+            <div class="flex justify-between items-center text-slate-400 mb-1">
+              <span>长视频标题：</span>
+              <button onclick="navigator.clipboard.writeText('【新竹專場】成精貓Mia親自幫工程師找工作？Indeed 95%+高薪軟體缺全公開！'); alert('已复制标题！')" class="text-emerald-400 hover:underline">一键复制</button>
+            </div>
+            <p class="text-slate-200 select-all font-medium">【新竹專場】成精貓Mia親自幫工程師找工作？Indeed 95%+高薪軟體缺全公開！</p>
+          </div>
+          <div class="border-t border-slate-800 pt-2 text-[11px] text-slate-400">
+            💡 上传 20秒 Shorts 后，在 YouTube 后台将此横屏片设为<strong>「关联长视频」</strong>，引流闭环即刻成型！
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: Cat CEO - The PIP Nightmare -->
+      <div class="bg-slate-900/90 border border-slate-700/60 rounded-2xl p-5 shadow-xl flex flex-col">
+        <h2 class="text-lg font-black text-white mb-2">🐱 《PIP的陰謀》</h2>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-slate-800 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/____PIP____3ea07dd5.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/____PIP____3ea07dd5.mp4" download="Cat_CEO_PIP_Nightmare.mp4" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center font-bold rounded-lg text-sm">⬇️ 下載</a>
+      </div>
+
+      <!-- NEW: Cat CEO - HR Cyber Blackhole -->
+      <div class="bg-slate-900/90 border border-slate-700/60 rounded-2xl p-5 shadow-xl flex flex-col">
+        <h2 class="text-lg font-black text-white mb-2">🐱 《HR 賽博黑洞》</h2>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-slate-800 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/____HR_____647897e1.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/____HR_____647897e1.mp4" download="Cat_CEO_HR_Cyber_Blackhole.mp4" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center font-bold rounded-lg text-sm">⬇️ 下載</a>
+      </div>
+
+      <!-- NEW: Cat CEO - Taiwan Fake Reality (繁中版) -->
+      <div class="bg-gradient-to-r from-amber-950/40 to-slate-900 border-2 border-amber-500 rounded-2xl p-5 shadow-xl flex flex-col">
+        <h2 class="text-lg font-black text-white mb-2">🐱 《扁平化假象 · 繁中版》</h2>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-amber-500/50 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/______________5ad98a49.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/______________5ad98a49.mp4" download="Cat_CEO_Fake_Reality_TC.mp4" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 text-center font-black rounded-lg text-sm">⬇️ 下載 繁中精華</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 6 - English Global Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-indigo-950/60 border-2 border-indigo-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+            GLOBAL ENGLISH · VOL. 06
+          </span>
+          <span class="text-xs text-indigo-300 font-mono">41.6 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 Cat Boss Vol. 06: Corporate Roast (English)</h2>
+        <p class="text-xs text-slate-400 mb-3">"We have a flat hierarchy! No titles, just pure ownership... Install SuperJobGenie!"</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-indigo-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/__________743d9a59.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/__________743d9a59.mp4" download="Cat_Boss_Vol6_English_Global.mp4" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-center font-bold rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 英文全球版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 6 - Taiwan Traditional Chinese Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-amber-950/60 border-2 border-amber-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            TAIWAN TC · VOL. 06
+          </span>
+          <span class="text-xs text-amber-300 font-mono">41.6 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 貓總裁 Vol. 06: 扁平化大家庭 (台灣繁中)</h2>
+        <p class="text-xs text-slate-400 mb-3">「我們公司很扁平！大家都有 Pure Ownership... 安裝 SuperJobGenie！」</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-amber-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/______________b6ec92a5.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/______________b6ec92a5.mp4" download="Cat_Boss_Vol6_Taiwan_TC.mp4" class="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-center font-black rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 台灣繁中版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 5 - English Global Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-cyan-950/60 border-2 border-cyan-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+            GLOBAL ENGLISH · VOL. 05
+          </span>
+          <span class="text-xs text-cyan-300 font-mono">39.9 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 Cat Boss Vol. 05: 30-Min Sync & Synergy (English)</h2>
+        <p class="text-xs text-slate-400 mb-3">"Let's jump on a quick 30-min sync to align our synergies... Reclaim your schedule with SuperJobGenie!"</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-cyan-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/___________0a50f752.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/___________0a50f752.mp4" download="Cat_Boss_Vol5_Sync_Synergy_English.mp4" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-center font-bold rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 英文全球版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 5 - Taiwan Traditional Chinese Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-teal-950/60 border-2 border-teal-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
+            TAIWAN TC · VOL. 05
+          </span>
+          <span class="text-xs text-teal-300 font-mono">39.9 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 貓總裁 Vol. 05: 快速開個30分鐘Sync會議 (台灣繁中)</h2>
+        <p class="text-xs text-slate-400 mb-3">「我們快速開個30分鐘Sync會議對齊Synergy... 別再讓日曆偷走人生，安裝 SuperJobGenie！」</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-teal-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/_______________ca2209f4.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/_______________ca2209f4.mp4" download="Cat_Boss_Vol5_Sync_Synergy_Taiwan_TC.mp4" class="w-full py-2.5 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 text-center font-black rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 台灣繁中版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 3 - Junior Marketing Associate (English) -->
+      <div class="bg-gradient-to-b from-slate-900 to-orange-950/60 border-2 border-orange-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/40">
+            GLOBAL ENGLISH · VOL. 03
+          </span>
+          <span class="text-xs text-orange-300 font-mono">33.5 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 Cat Boss Vol. 03: Entry-Level 10 Yrs Experience (English)</h2>
+        <p class="text-xs text-slate-400 mb-3">"Looking for a Junior Marketing Associate: 10 yrs Python, ancient Latin... Compensation? Competitive with homelessness! Install SuperJobGenie!"</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-orange-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/___________71a87c8b.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/___________71a87c8b.mp4" download="Cat_Boss_Vol3_Entry_Level_Homelessness.mp4" class="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-white text-center font-bold rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 英文版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 2 - Mental Health & Work-Life Balance (English) -->
+      <div class="bg-gradient-to-b from-slate-900 to-rose-950/60 border-2 border-rose-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+            GLOBAL ENGLISH · VOL. 02
+          </span>
+          <span class="text-xs text-rose-300 font-mono">29.1 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 Cat Boss Vol. 02: Mental Health & 11PM Slack (English)</h2>
+        <p class="text-xs text-slate-400 mb-3">"We prioritize your mental health! Translation: answer Slack at 11 PM while crying in bathroom... Install SuperJobGenie!"</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-rose-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/_____________f9b94f35.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/_____________f9b94f35.mp4" download="Cat_Boss_Vol2_Mental_Health_11pm_Slack.mp4" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-center font-bold rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 英文版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 8 - English Global Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-yellow-950/60 border-2 border-yellow-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+            GLOBAL ENGLISH · VOL. 08
+          </span>
+          <span class="text-xs text-yellow-300 font-mono">17.8 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 Cat Boss Vol. 08: Buzzwords & Performance Art (English)</h2>
+        <p class="text-xs text-slate-400 mb-3">"Mask the emptiest core with grandest buzzwords... Even if servers explode, boss praises your failure as performance art!"</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-yellow-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/_______________20c14833.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/_______________20c14833.mp4" download="Cat_Boss_Vol8_Buzzwords_Performance_Art_English.mp4" class="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 text-center font-black rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 英文版 (.mp4)</a>
+      </div>
+
+      <!-- MASTERPIECE: Cat Boss Vol. 8 - Taiwan Traditional Chinese Edition -->
+      <div class="bg-gradient-to-b from-slate-900 to-amber-950/60 border-2 border-amber-400 rounded-2xl p-5 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            TAIWAN TC · VOL. 08
+          </span>
+          <span class="text-xs text-amber-300 font-mono">17.8 秒</span>
+        </div>
+        <h2 class="text-base font-black text-white mb-1">🐱💼 貓總裁 Vol. 08: 把故障優化成行為藝術 (台灣繁中)</h2>
+        <p class="text-xs text-slate-400 mb-3">「宏大名詞掩蓋貧瘠內核！PPT夠炫酷，哪怕伺服器炸了，老闆也誇你把故障優化成行為藝術！」</p>
+        <div class="w-full bg-black rounded-xl overflow-hidden mb-4 border border-amber-500/30 flex justify-center aspect-[9/16] items-center">
+          <video controls preload="metadata" class="h-full w-auto object-contain">
+            <source src="/assets/aistudio/___________________e98a0cce.mp4" type="video/mp4">
+          </video>
+        </div>
+        <a href="/assets/aistudio/___________________e98a0cce.mp4" download="Cat_Boss_Vol8_Performance_Art_Taiwan_TC.mp4" class="w-full py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-center font-black rounded-lg text-xs uppercase tracking-wider transition">⬇️ 下載 台灣繁中版 (.mp4)</a>
+      </div>
+    </div>
+
+  <script>
+    function switchCatCeoVideo(src, btn) {
+      const player = document.getElementById('catCeoVideoPlayer');
+      const source = document.getElementById('catCeoVideoSource');
+      if (player && source) {
+        source.src = src;
+        player.load();
+        player.play().catch(() => {});
+      }
+      document.querySelectorAll('.cat-tab').forEach(el => {
+        el.className = 'cat-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition';
+      });
+      if (btn) {
+        btn.className = 'cat-tab px-2.5 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg transition';
+      }
+    }
+
+    function switchCatBaliVideo(src, btn) {
+      const player = document.getElementById('catBaliVideoPlayer');
+      const source = document.getElementById('catBaliVideoSource');
+      if (player && source) {
+        source.src = src;
+        player.load();
+        player.play().catch(() => {});
+      }
+      document.querySelectorAll('.bali-tab').forEach(el => {
+        el.className = 'bali-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition';
+      });
+      if (btn) {
+        btn.className = 'bali-tab px-2.5 py-1 bg-purple-500 text-slate-950 font-bold rounded-lg transition';
+      }
+    }
+
+    function switchCatNightmareVideo(src, btn) {
+      const player = document.getElementById('catNightmareVideoPlayer');
+      const source = document.getElementById('catNightmareVideoSource');
+      if (player && source) {
+        source.src = src;
+        player.load();
+        player.play().catch(() => {});
+      }
+      document.querySelectorAll('.nightmare-tab').forEach(el => {
+        el.className = 'nightmare-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition';
+      });
+      if (btn) {
+        btn.className = 'nightmare-tab px-2.5 py-1 bg-emerald-500 text-slate-950 font-bold rounded-lg transition';
+      }
+    }
+
+    function switchCatPipVideo(src, btn) {
+      const player = document.getElementById('catPipVideoPlayer');
+      const source = document.getElementById('catPipVideoSource');
+      if (player && source) {
+        source.src = src;
+        player.load();
+        player.play().catch(() => {});
+      }
+      document.querySelectorAll('.pip-tab').forEach(el => {
+        el.className = 'pip-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition';
+      });
+      if (btn) {
+        btn.className = 'pip-tab px-2.5 py-1 bg-red-500 text-slate-950 font-bold rounded-lg transition';
+      }
+    }
+
+    function switchCatPipUpdateVideo(src, btn) {
+      const player = document.getElementById('catPipUpdateVideoPlayer');
+      const source = document.getElementById('catPipUpdateVideoSource');
+      if (player && source) {
+        source.src = src;
+        player.load();
+        player.play().catch(() => {});
+      }
+      document.querySelectorAll('.pip-update-tab').forEach(el => {
+        el.className = 'pip-update-tab px-2.5 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg transition';
+      });
+      if (btn) {
+        btn.className = 'pip-update-tab px-2.5 py-1 bg-red-500 text-slate-950 font-bold rounded-lg transition';
+      }
+    }
+
+    function setCatVibe(vibe, btn) {
+      const frame = document.getElementById('catVideoFrame');
+      const overlay = document.getElementById('catOverlayEffect');
+      if (!frame) return;
+
+      if (vibe === 'crt') {
+        frame.className = 'w-full bg-black rounded-3xl overflow-hidden border-4 border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.5)] aspect-[9/16] relative flex items-center justify-center transition-all duration-300';
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.className = 'absolute inset-0 pointer-events-none z-10 opacity-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]';
+        }
+      } else if (vibe === 'cyber') {
+        frame.className = 'w-full bg-slate-950 rounded-xl overflow-hidden border-2 border-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.4)] aspect-[9/16] relative flex items-center justify-center transition-all duration-300';
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.className = 'absolute inset-0 pointer-events-none z-10 opacity-30 bg-[radial-gradient(circle,_rgba(34,211,238,0.2)_10%,_transparent_90%)]';
+        }
+      } else if (vibe === 'clean') {
+        frame.className = 'w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-amber-500/80 shadow-2xl aspect-[9/16] relative flex items-center justify-center transition-all duration-300';
+        if (overlay) {
+          overlay.style.display = 'none';
+        }
+      }
+
+      document.querySelectorAll('.vibe-tab').forEach(el => {
+        el.className = 'vibe-tab px-2 py-0.5 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded transition';
+      });
+      if (btn) {
+        btn.className = 'vibe-tab px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/50 rounded transition font-bold';
+      }
+    }
+  </script>
+</body>
+</html>

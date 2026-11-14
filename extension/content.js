@@ -1,0 +1,4841 @@
+/**
+ * SuperJobGenie Chrome Extension - Content Script (v2.9.8 Pro)
+ * Industrial-grade Shadow DOM Isolation + Floating Executive HUD + Full Resume Ingestion Engine
+ * Zero Center Blocking · Single Instance · Accurate Domain Skill Alignment
+ * Universal Multi-Platform Engine: Indeed (Global), Glassdoor (US/UK), ZipRecruiter (US/UK/CA), LinkedIn, Workday, Greenhouse, Lever
+ */
+
+(function () {
+  'use strict';
+
+  // Prevent duplicate script execution or multi-frame stacking
+  if (window.__SUPER_JOB_GENIE_INITIALIZED__ || document.getElementById('sjg-shadow-host-root')) {
+    return;
+  }
+  window.__SUPER_JOB_GENIE_INITIALIZED__ = true;
+
+  console.log('[SuperJobGenie v2.9.8 Pro] Executive HUD initialized.');
+
+  // Candidate Profile State (Default starts neutral/fresh, hydrated from storage)
+  let candidateProfile = {
+    name: 'Candidate Profile',
+    title: 'Senior Software Engineer & Systems Architect',
+    targetRole: 'Senior Software Engineer / Tech Lead',
+    yearsOfExperience: 10,
+    skills: [
+      'Java', 'Python', 'Go', 'JavaScript', 'TypeScript', 'Node.js', 'C++', 'SQL',
+      'Spring Boot', 'React', 'Docker', 'Kubernetes', 'AWS', 'CI/CD',
+      'Microservices', 'Distributed Systems', 'Redis', 'MySQL', 'PostgreSQL',
+      'High Concurrency', 'System Design', 'Unit Testing', 'Agile'
+    ],
+    rawResumeText: ''
+  };
+
+  // Hydrate candidate profile from chrome.storage.local or localStorage immediately
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(['sjg_candidate_profile'], (res) => {
+        if (res && res.sjg_candidate_profile) {
+          candidateProfile = { ...candidateProfile, ...res.sjg_candidate_profile };
+          renderShadowUI();
+        }
+      });
+    } else {
+      const saved = localStorage.getItem('sjg_candidate_profile');
+      if (saved) {
+        candidateProfile = { ...candidateProfile, ...JSON.parse(saved) };
+      }
+    }
+  } catch (e) {}
+
+  function saveProfileToStorage() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({ sjg_candidate_profile: candidateProfile });
+      }
+      localStorage.setItem('sjg_candidate_profile', JSON.stringify(candidateProfile));
+    } catch (e) {}
+  }
+
+  // UI State
+  let cachedJobData = null;
+  let isModalOpen = false;
+  let isCandidateExpanded = false;
+  let isBuggyMode = false;
+  let isEditCandidateOpen = false;
+  let shadowRoot = null;
+  let hostContainer = null;
+  let fireworkParticles = [];
+  let fireworkAnimId = null;
+  let lastFireworksJobKey = null;
+  let renderDebounceTimer = null; // Coalesces rapid back-to-back rescans into a single render
+
+  // Autonomous Scout Bot Engine State
+  let isAutoPilotEnabled = true;
+  let isFocusHighMatchOnly = false; // X-Ray Focus: Highlight >= 80% matches, dim low matches
+  let scannedLeadsRegistry = new Map(); // Global session registry of scanned job leads
+  let scannedCardsCount = 0;
+  let highMatchCount = 0;
+  let autoPilotScanTimer = null;
+
+  /**
+   * HTML Sanitizer & Formatter
+   */
+  function cleanHtmlToFormattedText(html) {
+    if (!html) return '';
+    let text = html;
+    text = text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, '\n• $1');
+    text = text.replace(/<br\s*[\/]?>/gi, '\n');
+    text = text.replace(/<\/p>/gi, '\n\n');
+    text = text.replace(/<\/div>/gi, '\n');
+    text = text.replace(/<\/h[1-6]>/gi, '\n\n');
+    text = text.replace(/<[^>]+>/g, '');
+    text = text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter((line, idx, arr) => line.length > 0 || (idx > 0 && arr[idx - 1].length > 0))
+      .join('\n');
+  }
+
+  /**
+   * Detect current job platform
+   */
+  function detectPlatform() {
+    const host = window.location.hostname.toLowerCase();
+    if (host.includes('indeed.hk')) return 'Indeed Hong Kong';
+    if (host.includes('tw.indeed.com') || host.includes('indeed.com.tw')) return 'Indeed Taiwan';
+    if (host.includes('sg.indeed.com') || host.includes('indeed.com.sg')) return 'Indeed Singapore';
+    if (host.includes('104.com.tw')) return '104人力銀行 (Taiwan)';
+    if (host.includes('1111.com.tw')) return '1111人力銀行 (Taiwan)';
+    if (host.includes('cakeresume.com')) return 'CakeResume';
+    if (host.includes('jobstreet.com')) return 'JobStreet (SG/MY)';
+    if (host.includes('joinhandshake.com') || host.includes('handshake.com')) return 'Handshake';
+    if (host.includes('indeed.')) return 'Indeed';
+    if (host.includes('linkedin.')) return 'LinkedIn';
+    if (host.includes('glassdoor.')) return 'Glassdoor';
+    if (host.includes('ziprecruiter.')) return 'ZipRecruiter';
+    if (host.includes('dice.')) return 'Dice';
+    if (host.includes('greenhouse.io')) return 'Greenhouse ATS';
+    if (host.includes('lever.co')) return 'Lever ATS';
+    if (host.includes('myworkdayjobs.com')) return 'Workday ATS';
+    if (host.includes('wellfound.com')) return 'Wellfound';
+    return 'Indeed / Web';
+  }
+
+  function isSearchHeader(str) {
+    if (!str) return true;
+    const s = str.trim().toLowerCase();
+    if (s.length < 2) return true;
+    if (s.startsWith('about ') || s.startsWith('who we are') || s.startsWith('the role') || s.startsWith('your skills') || s.startsWith('what you') || s.startsWith('what we') || s.startsWith('w2 only') || s.startsWith('why join')) return true;
+    return s.includes(' jobs in ') || 
+           s.includes(' jobs near ') || 
+           s.includes(' jobs, employment') || 
+           s.includes(' jobs available in ') || 
+           s.startsWith('jobs in ') ||
+           s.includes('frequently asked questions') ||
+           s.includes('people also ask') ||
+           s.includes('related searches') ||
+           s.includes('hiring insights') ||
+           s.includes('job details') ||
+           s.includes('full job description') ||
+           s.includes('about the company') ||
+           s.includes('about the role') ||
+           s.includes('who we are') ||
+           s.includes('the role') ||
+           s.includes('company overview') ||
+           s.includes('工作職缺') ||
+           s.includes('職缺列表') ||
+           s.includes('常見問題') ||
+           s.includes('公司簡介') ||
+           s.includes('職務說明') ||
+           s === 'job description' ||
+           s === 'overview' ||
+           s === 'summary' ||
+           s === 'responsibilities' ||
+           s === 'qualifications' ||
+           s === 'requirements' ||
+           s === 'faq' ||
+           s === 'faqs';
+  }
+
+  function cleanJobTitle(str) {
+    if (!str) return '';
+    let title = str.replace(/^new\s+/i, '').replace(/[\r\n]+/g, ' ').trim();
+    // Strip recruiter marketing adjectives / prefixes
+    title = title.replace(/^(?:we\s+are\s+looking\s+for\s+(?:an?|the)?|seeking\s+(?:an?|the)?|looking\s+for\s+(?:an?|the)?|hiring\s+(?:an?|the)?|wanted\s*:?|urgent\s*:?)\s+/i, '');
+    title = title.replace(/^(?:talented|highly\s+skilled(?:\s+and\s+motivated)?|experienced|skilled|passionate|motivated|dynamic|hands-on)\s+/i, '');
+    // Clean trailing contract/location qualifiers e.g. " - Remote", " (Hybrid)", " [Full-Time]"
+    title = title.replace(/\s*[-–—|•]\s*(?:full\s*time|part\s*time|contract|hybrid|remote|on-site|urgently\s*hiring|w2\s*only).*$/i, '');
+    title = title.trim();
+    // Normalize casing if all lowercase (e.g. "data engineer" -> "Data Engineer")
+    if (title && title === title.toLowerCase()) {
+      title = title.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+    return title;
+  }
+
+  function cleanCompanyName(str) {
+    if (!str) return '';
+    let s = str.replace(/[\r\n\t]+/g, ' ').trim();
+    // Split on middle dots, bullets, vertical pipes, dashes with spaces, or multiple spaces
+    s = s.split(/[·•|]/)[0].trim();
+    // Strip trailing ratings e.g. "4.2 ★", "★ 4.2", "4.2", "4.0 stars"
+    s = s.replace(/[\d.]+\s*[★*]+.*$/g, '').replace(/^[★*]+\s*[\d.]+/g, '').trim();
+    // Strip trailing city/state if hyphenated like "Baeslan - New York, NY"
+    s = s.replace(/\s*[-–—]\s*(?:New York|San Francisco|London|Austin|Seattle|Boston|Chicago|Los Angeles|Remote|Hybrid|United States|USA).*$/i, '');
+    s = s.trim();
+    if (isJunkCompany(s)) return '';
+    return s;
+  }
+
+  function isJunkCompany(str) {
+    if (!str) return true;
+    const s = str.trim().toLowerCase();
+    if (s.length < 2 || s.length > 60) return true;
+    if (isSearchHeader(s)) return true;
+    // Reject full sentences with punctuation, colons, or multi-lines
+    if (/[.!?]$/.test(s) || s.includes(';\n') || s.includes('\n')) return true;
+    const words = s.split(/\s+/);
+    if (words.length > 7) return true; // Company names are 1 to 6 words
+    
+    // Explicit generic placeholders
+    if (s === 'company' || s === 'the company' || s === 'employer' || s === 'target employer' || s === 'client' || s === 'confidential') {
+      return true;
+    }
+
+    // Sentence verbs & phrases that indicate JD text or job descriptions rather than an employer name
+    if (/\b(support|resolve|responsibilities|qualifications|looking for|seeking|we are|this is|interview|benefits|hours per week|equal opportunity)\b/i.test(s)) {
+      return true;
+    }
+
+    const junkTerms = [
+      'frequently asked questions',
+      'job details',
+      'full job description',
+      'apply now',
+      'apply on company site',
+      'save job',
+      'hiring insights',
+      'about us',
+      'overview',
+      'ratings',
+      'reviews',
+      'compensation',
+      'location',
+      'salary',
+      'abotts',
+      '立即應徵',
+      '儲存職缺',
+      '公司介紹',
+      '薪資待遇'
+    ];
+    return junkTerms.some(t => s === t || s.includes(t));
+  }
+
+  let lastClickedCard = null;
+
+  /**
+   * Job Freshness & Expiration Detector
+   * Accurately detects expired, closed, or stale (>30 days) listings on Indeed, LinkedIn, etc.
+   */
+  function extractJobFreshness(container, fullText) {
+    const textToSearch = ((container?.innerText || '') + ' ' + (fullText || '')).toLowerCase();
+    
+    // Check expiration indicators
+    const isExpired = /this job has expired|job has expired|job is closed|position closed|no longer accepting applications|not accepting applications|posting is no longer available|job has ended|listing expired|職缺已結束|職缺已關閉|已過期|已截止/i.test(textToSearch);
+    
+    if (isExpired) {
+      return {
+        isExpired: true,
+        isStale: true,
+        postedText: 'Closed / Expired',
+        statusClass: 'expired',
+        label: '⚠️ Closed / Expired'
+      };
+    }
+    
+    // Check 30+ days old
+    if (/30\+\s*days\s*ago|more than 30 days|active 30\+|posted 30\+|超過 30 天/i.test(textToSearch)) {
+      return {
+        isExpired: false,
+        isStale: true,
+        postedText: '30+ days ago',
+        statusClass: 'stale',
+        label: '⏰ 30+ Days Old'
+      };
+    }
+    
+    // Check recent post date
+    let postedText = '';
+    const dateMatch = textToSearch.match(/\b(just posted|today|yesterday|\d+\s*(?:day|days|hour|hours)\s*ago)\b/i);
+    if (dateMatch) {
+      postedText = dateMatch[1];
+    } else {
+      const activeMatch = textToSearch.match(/active\s*(\d+\s*days?\s*ago|today|yesterday)/i);
+      if (activeMatch) {
+        postedText = activeMatch[1];
+      }
+    }
+    
+    return {
+      isExpired: false,
+      isStale: false,
+      postedText: postedText || 'Active',
+      statusClass: 'active',
+      label: postedText ? `🟢 Active (${postedText})` : '🟢 Active Posting'
+    };
+  }
+
+  /**
+   * Deep Extractor: Un-scoped Multi-Channel Extraction
+   */
+  function extractFullIndeedJob() {
+    const platform = detectPlatform();
+    let title = '';
+    let company = '';
+    let location = platform === 'Glassdoor' ? 'London, UK • On-site / Hybrid' : 'On-site / Hybrid';
+    let salary = '';
+    let fullBodyText = '';
+    let extractionSource = `${platform} Dynamic Engine`;
+    let isSchemaOrg = false;
+    let jk = '';
+    let foundJdEl = null;
+
+    // 1. Get jobKey from URL if available
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      jk = urlParams.get('currentJobId') || urlParams.get('vjk') || urlParams.get('jk') || urlParams.get('jobId') || '';
+      if (!jk) {
+        const hsMatch = window.location.pathname.match(/\/stu\/(?:jobs|postings)\/(\d+)/);
+        if (hsMatch) jk = hsMatch[1];
+      }
+      if (!jk) {
+        const lnMatch = window.location.pathname.match(/\/jobs\/view\/(\d+)/);
+        if (lnMatch) jk = lnMatch[1];
+      }
+      if (!jk && lastClickedCard?.jk) {
+        jk = lastClickedCard.jk;
+      }
+    } catch (e) {}
+
+    // 2. Identify Active Job Pane / Container (Right side details pane across platforms)
+    const activePane = 
+      // Handshake Right Details Pane & Main Content
+      document.querySelector('[data-hook="jobs-preview-container"]') ||
+      document.querySelector('[data-hook="job-details"]') ||
+      document.querySelector('[data-hook="job-preview"]') ||
+      document.querySelector('.job-details-pane') ||
+      document.querySelector('[class*="job-preview"]') ||
+      document.querySelector('[class*="JobPreview"]') ||
+      document.querySelector('[class*="job-details"]') ||
+      document.querySelector('[class*="JobDetails"]') ||
+      // Indeed
+      document.querySelector('.jobsearch-JobComponent') ||
+      document.querySelector('[data-testid="jobsearch-JobComponent"]') ||
+      document.querySelector('.jobsearch-RightPane') ||
+      document.querySelector('#jobsearch-ViewjobPaneWrapper') ||
+      document.querySelector('[data-testid="jobsearch-ViewJobLayout"]') ||
+      document.querySelector('#vjs-container') ||
+      // Glassdoor Right Details Pane
+      document.querySelector('[data-test="job-details"]') ||
+      document.querySelector('[data-brandviews="PAGE:job-details"]') ||
+      document.querySelector('[data-brandviews*="job-details"]') ||
+      document.querySelector('[data-test="jobDetails"]') ||
+      document.querySelector('#JobDetails') ||
+      document.querySelector('[class*="JobDetails_jobDetailsContainer"]') ||
+      document.querySelector('[class*="JobDetails_container"]') ||
+      document.querySelector('[class*="JobDetails_wrapper"]') ||
+      document.querySelector('[class*="jobDetails"]') ||
+      document.querySelector('article[data-test="job-details"]') ||
+      document.querySelector('div[aria-label*="Job Details"]') ||
+      document.querySelector('div[aria-label*="Job details"]') ||
+      // ZipRecruiter Details Pane / Main Container
+      document.querySelector('[data-testid="job-details"]') ||
+      document.querySelector('.job_details') ||
+      document.querySelector('[class*="job_details"]') ||
+      document.querySelector('[class*="jobDetails"]') ||
+      document.querySelector('.job_description_container') ||
+      document.querySelector('.job_content') ||
+      document.querySelector('article.job_description') ||
+      document.querySelector('main#main') ||
+      // LinkedIn
+      document.querySelector('.jobs-search__job-details') ||
+      document.querySelector('.jobs-details') ||
+      document.querySelector('.job-view-layout') ||
+      document.querySelector('.scaffold-layout__detail') ||
+      document.querySelector('.jobs-search-results-list__list-item--active') ||
+      document.querySelector('.job-details-jobs-unified-top-card__container--two-pane') ||
+      document.querySelector('.jobs-description') ||
+      document.querySelector('.jobs-search__job-details--container') ||
+      document.querySelector('.scaffold-layout__detail-content') ||
+      // Fallback
+      document.querySelector('.fastviewjob') ||
+      document;
+
+    // Industrial-grade Event Dispatcher & Un-clamping Engine for Glassdoor, Indeed, LinkedIn
+    function simulateClick(el) {
+        if (!el) return;
+        // CRITICAL GUARD: NEVER click links or anchors with href, or navigation targets!
+        if (el.tagName === 'A' || el.closest('a') || el.hasAttribute('href') || el.hasAttribute('target')) {
+            return;
+        }
+        try { el.focus(); } catch (e) {}
+        try {
+            if (typeof el.click === 'function') {
+                el.click();
+            }
+        } catch (e) {}
+        try {
+            const opts = { bubbles: true, cancelable: true, composed: true, view: window };
+            el.dispatchEvent(new PointerEvent('pointerdown', opts));
+            el.dispatchEvent(new MouseEvent('mousedown', opts));
+            el.dispatchEvent(new PointerEvent('pointerup', opts));
+            el.dispatchEvent(new MouseEvent('mouseup', opts));
+            el.dispatchEvent(new MouseEvent('click', opts));
+        } catch (e) {}
+    }
+
+    function expandAllButtons(pane) {
+        // 1. Guaranteed CSS Force-Unfold (Zero-click bypass: unclamps Glassdoor & LinkedIn truncated containers)
+        try {
+            if (!document.getElementById('sjg-unclamp-style')) {
+                const style = document.createElement('style');
+                style.id = 'sjg-unclamp-style';
+                style.textContent = `
+                    [class*="JobDetails_jobDescription"],
+                    [class*="TruncatedContent_truncated"],
+                    [class*="TruncatedContent_content"],
+                    [class*="DescStyles_desc"],
+                    [class*="DescStyles_descriptionContainer"],
+                    [class*="jobDescriptionContent"],
+                    [data-test="jobDescriptionText"],
+                    [data-test="job-description"],
+                    [data-test="job-description-content"],
+                    [data-test="job-description-text"],
+                    #JobDescriptionContainer,
+                    .jobDescriptionContent,
+                    .jobs-description__content,
+                    .jobs-box__html-content,
+                    .jobs-description-content__text,
+                    .jobs-description-content,
+                    .jobs-box__html-content--tall {
+                        max-height: none !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                        -webkit-line-clamp: unset !important;
+                        display: block !important;
+                        mask-image: none !important;
+                        -webkit-mask-image: none !important;
+                    }
+                    [class*="TruncatedContent_gradient"],
+                    [class*="JobDetails_showMoreGradient"],
+                    [class*="gradientOverlay"],
+                    .jobDescriptionContent__gradient,
+                    .jobs-description__footer,
+                    button[data-test="expand-description"],
+                    [class*="TruncatedContent_showMore"] {
+                        display: none !important;
+                    }
+                `;
+                (document.head || document.documentElement).appendChild(style);
+            }
+        } catch (e) {}
+
+        // ZERO-CLICK PROHIBITION for Glassdoor and LinkedIn:
+        // CSS force-unfold handles 100% of container un-clamping without executing any synthetic clicks.
+        // This permanently eliminates qualification modal popups ("Füge deine Qualifikationen für diesen Job hinzu")
+        // and browser history/navigation bouncing.
+        const currentPlatform = detectPlatform();
+        if (currentPlatform === 'Glassdoor' || currentPlatform === 'LinkedIn' || window.location.hostname.includes('glassdoor.') || window.location.hostname.includes('linkedin.')) {
+            // Dismiss any existing qualifications modal on Glassdoor if present
+            try {
+                const qualifModal = document.querySelector('[data-test="qualification-modal"], div[role="dialog"]');
+                if (qualifModal) {
+                    const txt = (qualifModal.innerText || '').toLowerCase();
+                    if (txt.includes('qualifikationen') || txt.includes('qualifications') || txt.includes('füge deine qualifikationen')) {
+                        const closeBtn = qualifModal.querySelector('button[aria-label*="close" i], button[aria-label*="schließen" i], button[data-test="modal-close"], button.close, svg');
+                        if (closeBtn) closeBtn.click();
+                        else qualifModal.remove();
+                    }
+                }
+            } catch (e) {}
+            return;
+        }
+
+        // 2. High-precision click triggering ONLY inside the job description container (NEVER document-wide, NEVER qualifications)
+        const targetContainer = (pane && pane !== document && pane !== document.body && pane !== document.documentElement)
+            ? (pane.querySelector('#jobDescriptionText, [data-testid="jobDescriptionText"], [data-hook="job-description"], .jobsearch-JobComponent-description, .job_description') || pane)
+            : document.querySelector('#jobDescriptionText, [data-hook="job-description"], .jobsearch-JobComponent-description');
+        
+        if (!targetContainer) return;
+
+        const specificSelectors = [
+            'button.jobs-description__footer-button',
+            'button[aria-label*="Show more"]',
+            'button.jobs-box__html-show-more-button',
+            'button[data-test="show-more-button"]',
+            'button[data-test="job-description-show-more"]',
+            'button[data-test="show-more"]',
+            'button[data-test="expand-description"]',
+            'button[class*="showMoreButton"]',
+            'button[class*="ShowMoreButton"]',
+            'button[class*="showMore"]'
+        ];
+
+        const textMatches = [
+            'show more', 'mehr anzeigen', '顯示更多', '显示更多',
+            'read more', 'see more', 'voir plus', 'ver más',
+            'view full', 'view more', 'expand', 'mehr lesen', 'alles anzeigen', 'vollständige stellenbeschreibung'
+        ];
+
+        const clickedSet = new Set();
+        specificSelectors.forEach(sel => {
+            try {
+                const elements = targetContainer.querySelectorAll(sel);
+                elements.forEach(btn => {
+                    if (!btn || clickedSet.has(btn)) return;
+                    
+                    // NEVER click anchor tags, links with href, or external targets
+                    if (btn.tagName === 'A' || btn.closest('a') || btn.hasAttribute('href') || btn.hasAttribute('target')) {
+                        return;
+                    }
+
+                    // Strict exclusion: Never click anything inside qualifications, header, modal, review, or salary containers
+                    if (btn.closest('[data-test*="qualif"], [class*="Qualif"], [class*="qualif"], [data-test*="skill"], [class*="Skill"], [data-test*="salary"], [class*="Salary"], [class*="modal"], [role="dialog"], header, nav, footer, [data-test*="header"]')) {
+                        return;
+                    }
+
+                    const txt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                    const btnClass = (btn.className || '').toString().toLowerCase();
+                    const dataTest = (btn.getAttribute('data-test') || '').toLowerCase();
+
+                    // Guard: Avoid clicking company profiles, apply buttons, navigation, follow, save, share, message, qualifications, skills, surveys
+                    if (/apply|follow|save|share|message|company|sign in|login|connect|network|messaging|notification|qualif|skill|fähigkeiten|kenntnisse|fertig|done|close|schließen|modal|dialog|survey|review|bewertung|rating|salary|gehalt|preference|einstellung|alert/i.test(txt) ||
+                        /apply|follow|save|share|message|company|connect|qualif|skill|modal|dialog|close|salary/i.test(ariaLabel) ||
+                        /apply|follow|save|share|message|company|qualif|skill|modal|dialog|close/i.test(btnClass) ||
+                        /qualif|skill|modal|dialog|close/i.test(dataTest)) {
+                        return;
+                    }
+
+                    const isMatch = textMatches.some(t => txt.includes(t)) || 
+                                    dataTest.includes('show-more') ||
+                                    dataTest.includes('expand') ||
+                                    btnClass.includes('showmore') ||
+                                    ariaLabel.includes('show more');
+
+                    if (isMatch) {
+                        const rect = btn.getBoundingClientRect();
+                        const isVisible = (rect.width > 0 && rect.height > 0) || btn.getClientRects().length > 0 || btn.offsetParent !== null;
+                        if (isVisible) {
+                            clickedSet.add(btn);
+                            simulateClick(btn);
+                        }
+                    }
+                });
+            } catch (e) {}
+        });
+    }
+
+    if (activePane && activePane !== document && activePane !== document.body) {
+        expandAllButtons(activePane);
+        setTimeout(() => expandAllButtons(activePane), 350);
+    }
+
+    // 3. Channel 1: Native Live DOM Traversal (Right pane + Document-wide multi-candidate traversal)
+    const candidateSelectors = [
+      // Handshake
+      '[data-hook="job-description"]',
+      '[data-hook="jobs-card-description"]',
+      '.job-description',
+      '[class*="job-description"]',
+      '[class*="JobDescription"]',
+      '[class*="posting-description"]',
+      '[class*="style__description"]',
+      // Indeed (Global, Taiwan tw.indeed.com, HK, SG, JP, US, UK, FR, DE, IT, etc.)
+      '#jobDescriptionText',
+      '[data-testid="jobDescriptionText"]',
+      'div#jobDescriptionText',
+      '.jobsearch-jobDescriptionText',
+      '.jobsearch-JobComponent-description',
+      '[data-testid="jobsearch-JobComponent-description"]',
+      '[data-testid="jobsearch-JobDescriptionSection"]',
+      '#jobDescriptionSection',
+      'div[data-segment-label="JobDescription"]',
+      '#jobDescriptionTitle ~ div',
+      '#jobDescriptionTitle + div',
+      '#vjs-content #jobDescriptionText',
+      '#vjs-desc',
+      '.vjs-content',
+      '.vjs-desc',
+      'div.fastviewjob #jobDescriptionText',
+      '#viewJobSSRRoot #jobDescriptionText',
+      '#viewJobSSRRoot [class*="JobComponent"]',
+      'div[class*="jobsearch-JobComponent-description"]',
+      'div[class*="jobDescriptionText"]',
+      'div[data-testid*="jobDescription"]',
+      'div[data-testid*="job-description"]',
+      'section[data-testid*="jobDescription"]',
+      'article[class*="jobDescription"]',
+      // Glassdoor
+      '[data-test="jobDescriptionText"]',
+      '[data-test="job-description"]',
+      '[data-test="job-description-content"]',
+      '[data-test="job-description-text"]',
+      '[class*="JobDetails_jobDescription"]',
+      '[class*="JobDetails_jobDescriptionText"]',
+      '[class*="JobDetails_jobDescriptionContainer"]',
+      '[class*="DescStyles_desc"]',
+      '[class*="DescStyles_descriptionContainer"]',
+      '[class*="JobDetails_desc"]',
+      '[class*="TruncatedContent_content"]',
+      '#JobDescriptionContainer',
+      '.jobDescriptionContent',
+      '[class*="jobDescription"]',
+      // ZipRecruiter
+      '.job_description',
+      '[data-testid="job-description"]',
+      '.jobDescriptionSection',
+      '.jobDescriptionContent',
+      '[class*="job_description"]',
+      '[class*="jobDescription"]',
+      'div[itemprop="description"]',
+      '#job_desc',
+      '.job-description-content',
+      '.job_details',
+      // LinkedIn
+      '.jobs-description-content',
+      '.jobs-description-content__text',
+      '.jobs-description',
+      'div#job-details',
+      '#job-details',
+      '.jobs-box__html-content',
+      '.jobs-unified-description__content',
+      '[data-testid="job-details"]',
+      '.scaffold-layout__detail .jobs-description-content',
+      '.jobs-search__job-details--container',
+      '.scaffold-layout__detail-content'
+    ];
+
+    // Priority 1: Check active pane first
+    for (const sel of candidateSelectors) {
+      const el = activePane.querySelector(sel);
+      if (el) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (txt.length > 80) {
+          fullBodyText = txt;
+          foundJdEl = el;
+          extractionSource = `${platform} DOM Active`;
+          break;
+        }
+      }
+    }
+
+    // Priority 2: Document-wide candidate traversal (handles multi-instance or split views)
+    if (!fullBodyText || fullBodyText.length < 80) {
+      for (const sel of candidateSelectors) {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (txt.length > 80) {
+            fullBodyText = txt;
+            foundJdEl = el;
+            extractionSource = `${platform} DOM Global`;
+            break;
+          }
+        }
+        if (fullBodyText && fullBodyText.length > 80) break;
+      }
+    }
+
+    // 4. Channel 2: Multi-lingual Heading Anchor & Container Fallbacks (Traditional Chinese, EN, JP, ES, FR, DE, IT)
+    if (!fullBodyText || fullBodyText.length < 80) {
+      const isJdHeading = (txt) => {
+        if (!txt || txt.length > 70) return false;
+        const s = txt.trim().toLowerCase();
+        return /^(?:full\s+)?job\s+description|^about\s+the\s+(?:role|job|company)|^what\s+we(?:'re|\s+are)\s+looking\s+for|^what\s+you(?:'ll|\s+will)\s+do|descripci[oó]n\s+(?:completa\s+)?del\s+(?:empleo|puesto)|detalles\s+del\s+empleo|description\s+(?:du|compl[eè]te\s+du)\s+poste|stellenbeschreibung|vollst[aä]ndige\s+stellenbeschreibung|descrizione\s+(?:completa\s+dell['’]offerta|del\s+lavoro)|descri[cç][aã]o\s+(?:completa\s+)?da\s+vaga|仕事内容|職務内容|完整職缺說明|職缺說明|工作內容|職務說明|職務內容|工作職缺|職位描述|職位要求|條件要求|應徵條件|職缺詳細內容|工作職責|職位詳情|工作詳情/i.test(s);
+      };
+
+      const scopes = [activePane, document.body].filter(Boolean);
+      for (const scope of scopes) {
+        const allHeadings = scope.querySelectorAll('h1, h2, h3, h4, div, span, p');
+        for (const h of allHeadings) {
+          const txt = (h.textContent || '').trim();
+          if (isJdHeading(txt)) {
+            // Traversal A: Next sibling
+            let sib = h.nextElementSibling;
+            while (sib) {
+              const raw = (sib.innerText || sib.textContent || '').trim();
+              if (raw.length > 80) {
+                fullBodyText = raw;
+                extractionSource = `${platform} Heading Sibling`;
+                foundJdEl = sib;
+                break;
+              }
+              sib = sib.nextElementSibling;
+            }
+
+            // Traversal B: Parent's next sibling (e.g. <div id="jobDescriptionTitle"><h2>...</h2></div> -> <div id="jobDescriptionText">...</div>)
+            if (!fullBodyText && h.parentElement?.nextElementSibling) {
+              const pSib = h.parentElement.nextElementSibling;
+              const raw = (pSib.innerText || pSib.textContent || '').trim();
+              if (raw.length > 80) {
+                fullBodyText = raw;
+                extractionSource = `${platform} Heading Parent Sibling`;
+                foundJdEl = pSib;
+                break;
+              }
+            }
+
+            // Traversal C: Closest container block
+            if (!fullBodyText && h.parentElement) {
+              const container = h.closest('.jobsearch-JobComponent-description, .jobsearch-JobComponent, section, article, div[class*="JobDetails"], div[class*="jobsearch"], div[data-testid*="job"]');
+              if (container) {
+                const cRaw = (container.innerText || container.textContent || '').trim();
+                if (cRaw.length > 120) {
+                  fullBodyText = cRaw;
+                  extractionSource = `${platform} Heading Block`;
+                  foundJdEl = container;
+                  break;
+                }
+              }
+            }
+          }
+          if (fullBodyText && fullBodyText.length > 80) break;
+        }
+        if (fullBodyText && fullBodyText.length > 80) break;
+      }
+    }
+
+    // Channel 2.5: Active Details Pane Deep Body Isolation (Infallible Fallback for Taiwan/APAC/international layouts)
+    if ((!fullBodyText || fullBodyText.length < 150) && activePane && activePane !== document && activePane !== document.body) {
+      try {
+        const paneClone = activePane.cloneNode(true);
+        // Strip non-content UI elements: headers, top cards, apply buttons, navigation, scripts, svg, HUD
+        const junkEls = paneClone.querySelectorAll(`
+          .jobsearch-JobInfoHeader,
+          [data-testid="jobsearch-JobInfoHeader"],
+          .jobsearch-JobComponent-header,
+          .jobsearch-DesktopStickyContainer,
+          [data-testid="jobsearch-ViewJobTopCard"],
+          header,
+          nav,
+          button,
+          .sjg-hud-panel,
+          #sjg-shadow-host-root,
+          script,
+          style,
+          svg,
+          form,
+          [role="toolbar"]
+        `);
+        junkEls.forEach(el => el.remove());
+        const cleanedText = (paneClone.innerText || paneClone.textContent || '').trim();
+        if (cleanedText.length > 150) {
+          fullBodyText = cleanedText;
+          extractionSource = `${platform} Pane Deep Body`;
+        }
+      } catch (e) {
+        console.warn('[SuperJobGenie] Active pane clone extraction error:', e);
+      }
+    }
+
+    // 5. Channel 3: Iframe Fallback
+    if (!fullBodyText || fullBodyText.length < 100) {
+      const iframes = document.querySelectorAll('iframe');
+      for (const iframe of iframes) {
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (doc) {
+            const el = doc.querySelector('#jobDescriptionText, [data-testid="jobDescriptionText"], [data-test="job-description"], [class*="JobDetails_jobDescription"]');
+            if (el) {
+              const raw = (el.innerText || el.textContent || '').trim();
+              if (raw.length > 100) {
+                fullBodyText = raw;
+                foundJdEl = el;
+                extractionSource = `${platform} Iframe`;
+                break;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // 6. Channel 4: Schema.org JSON-LD
+    if (!fullBodyText) {
+      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const script of jsonLdScripts) {
+        try {
+          const parsed = JSON.parse(script.textContent || '{}');
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          for (const item of items) {
+            if (item && item['@type'] === 'JobPosting' && item.description && item.description.length > 100) {
+              if (item.title && !isSearchHeader(item.title)) title = item.title;
+              if (item.hiringOrganization?.name) company = item.hiringOrganization.name;
+              if (item.jobLocation?.address?.addressLocality) location = `${item.jobLocation.address.addressLocality} • Active`;
+              if (item.baseSalary?.value?.value) salary = `$${item.baseSalary.value.value}`;
+              
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = item.description;
+              fullBodyText = tempDiv.innerText.trim();
+              extractionSource = `${platform} Schema.org`;
+              break;
+            }
+          }
+        } catch (e) {}
+        if (fullBodyText) break;
+      }
+    }
+
+    // 7. Dedicated Header Area Resolution (STRICTLY outside #jobDescriptionText)
+    const headerContainer = 
+      // Indeed
+      activePane.querySelector('.jobsearch-JobInfoHeader, [data-testid="jobsearch-JobInfoHeader"], .jobsearch-JobComponent-header, .jobsearch-DesktopStickyContainer, [data-testid="jobsearch-ViewJobTopCard"]') || 
+      // Glassdoor Top Card Area
+      activePane.querySelector('[data-test="job-details-header"], [class*="JobDetails_jobDetailsHeader"], [class*="JobDetails_header"], header') ||
+      // ZipRecruiter Header Area
+      activePane.querySelector('.job_header, [class*="job_header"], [class*="jobHeader"], .hiring_details') ||
+      activePane;
+
+    // 8. Extract Title ONLY from Header Area
+    const titleSelectors = [
+      // Handshake
+      '[data-hook="job-title"]',
+      '[data-hook="job-preview-title"]',
+      'h1[class*="job-title"]',
+      'h1[class*="JobTitle"]',
+      'h1[class*="title"]',
+      'a[href*="/stu/jobs/"] h1',
+      'a[href*="/stu/jobs/"] h2',
+      // ZipRecruiter
+      'h1.job_title',
+      '[data-testid="job-title"]',
+      'h1[class*="job_title"]',
+      'h1[class*="jobTitle"]',
+      '[class*="job_title"]',
+      '[class*="jobTitle"]',
+      // Glassdoor
+      '[data-test="job-title"]',
+      '[data-test="jobTitle"]',
+      '[data-test="heading-title"]',
+      'h1[data-test="jobTitle"]',
+      'h1[data-test="job-title"]',
+      '[class*="JobDetails_jobTitle"]',
+      '[class*="JobDetails_heading"]',
+      '[class*="heading-title"]',
+      // Indeed
+      '[data-testid="jobsearch-JobInfoHeader-title"]',
+      'h1.jobsearch-JobInfoHeader-title',
+      'h2.jobsearch-JobInfoHeader-title',
+      '.jobsearch-JobInfoHeader-title',
+      'h1[data-cy="jobTitle"]',
+      'h1.jobTitle',
+      'h1[class*="JobInfoHeader"]',
+      // LinkedIn
+      '.job-details-jobs-unified-top-card__job-title',
+      '.jobs-unified-top-card__job-title',
+      'h1.job-details-jobs-unified-top-card__job-title',
+      'h2.job-details-jobs-unified-top-card__job-title',
+      '.jobs-details__main-content h1',
+      '.jobs-details__main-content h2',
+      '.jobs-search__job-details h1',
+      '.jobs-search__job-details h2',
+      'h1.t-24',
+      // Generic
+      'h1'
+    ];
+
+    if (headerContainer) {
+      for (const sel of titleSelectors) {
+        const el = headerContainer.querySelector(sel);
+        if (el && !el.closest('#jobDescriptionText, [data-testid="jobDescriptionText"], [data-test="job-description"]') && el.innerText.trim()) {
+          const clean = cleanJobTitle(el.innerText);
+          if (!isSearchHeader(clean) && clean.length > 2 && clean.length < 120) {
+            title = clean;
+            break;
+          }
+        }
+      }
+    }
+
+    // Trust clicked card title if header search yielded nothing
+    if (!title && lastClickedCard?.title) {
+      title = cleanJobTitle(lastClickedCard.title);
+    }
+
+    // 9. Extract Company ONLY from Header Area
+    const compSelectors = [
+      // Handshake
+      '[data-hook="employer-name"]',
+      'a[href*="/stu/employers/"]',
+      'a[href*="/employers/"]',
+      '[class*="employer-name"]',
+      '[class*="EmployerName"]',
+      // LinkedIn
+      '.job-details-jobs-unified-top-card__company-name a',
+      '.job-details-jobs-unified-top-card__company-name',
+      '.jobs-unified-top-card__company-name a',
+      '.jobs-unified-top-card__company-name',
+      'a[href*="/company/"]',
+      '.job-details-jobs-unified-top-card__primary-description a',
+      '.jobs-unified-top-card__primary-description a',
+      'a.jobs-details-top-card__company-url',
+      // ZipRecruiter
+      'a.hiring_company_text',
+      '[data-testid="company-name"]',
+      '[data-testid="hiring-company"]',
+      'a[class*="company_name"]',
+      'span[class*="company_name"]',
+      'div[class*="hiring_company"]',
+      '[class*="hiring_company_text"]',
+      'a.t_company',
+      '[itemprop="hiringOrganization"]',
+      'span.company_name',
+      // Glassdoor
+      '[data-test="employer-name"]',
+      '[data-test="employerName"]',
+      '[class*="JobDetails_companyName"]',
+      '[class*="EmployerProfile_employerName"]',
+      '[class*="EmployerProfile_compactEmployerName"]',
+      '[class*="employerName"]',
+      '[data-test="employer-title"]',
+      'h4[data-test="employer-name"]',
+      'span[class*="EmployerProfile"]',
+      // Indeed
+      '[data-testid="inlineHeader-companyName"]',
+      '[data-company-name="true"]',
+      'a[href*="/cmp/"]',
+      '[data-testid="jobsearch-CompanyInfoContainer"]',
+      '.jobsearch-CompanyInfoContainer',
+      '.jobsearch-InlineCompanyRating-companyHeader a',
+      '.jobsearch-InlineCompanyRating-companyHeader',
+      'a[data-cy="companyName"]',
+      '.company-name',
+      '#vjs-cn'
+    ];
+
+    if (headerContainer) {
+      for (const sel of compSelectors) {
+        const el = headerContainer.querySelector(sel);
+        if (el && !el.closest('#jobDescriptionText, [data-testid="jobDescriptionText"], [data-test="job-description"]') && el.innerText.trim()) {
+          const clean = cleanCompanyName(el.innerText);
+          if (clean && !isJunkCompany(clean)) {
+            company = clean;
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback 1: Clicked Card Company
+    if ((!company || isJunkCompany(company)) && lastClickedCard?.company) {
+      const cleanClicked = cleanCompanyName(lastClickedCard.company);
+      if (cleanClicked && !isJunkCompany(cleanClicked)) {
+        company = cleanClicked;
+      }
+    }
+
+    // Fallback 2: Check active/details pane a[href*="/company/"] or Handshake employer link
+    if (!company || isJunkCompany(company)) {
+      const topComp = document.querySelector('.scaffold-layout__detail a[href*="/company/"], .jobs-search__job-details a[href*="/company/"], .jobs-details a[href*="/company/"], a[href*="/company/"], a[href*="/stu/employers/"], [data-hook="employer-name"]');
+      if (topComp && topComp.innerText.trim()) {
+        const cleanComp = cleanCompanyName(topComp.innerText);
+        if (cleanComp && !isJunkCompany(cleanComp)) {
+          company = cleanComp;
+        }
+      }
+    }
+
+    // 10. Location & Salary
+    if (headerContainer) {
+      const locSelectors = [
+        // Handshake
+        '[data-hook="job-location"]',
+        '[data-hook="location-requirement"]',
+        '[class*="location-requirement"]',
+        '[class*="job-location"]',
+        // ZipRecruiter
+        '.hiring_location',
+        '[data-testid="job-location"]',
+        '[class*="hiring_location"]',
+        '[class*="job_location"]',
+        '[itemprop="jobLocation"]',
+        // Glassdoor & Indeed & LinkedIn
+        '[data-test="location"]',
+        '[data-test="job-location"]',
+        '[data-test="jobLocation"]',
+        '[class*="JobDetails_location"]',
+        '[class*="JobDetails_jobLocation"]',
+        '[data-testid="jobsearch-JobInfoHeader-companyLocation"]',
+        '.jobsearch-JobInfoHeader-companyLocation',
+        '.job-details-jobs-unified-top-card__bullet',
+        '.jobs-unified-top-card__bullet',
+        '.job-details-jobs-unified-top-card__primary-description',
+        '.jobs-unified-top-card__primary-description',
+        '.jobs-unified-top-card__workplace-type'
+      ];
+      for (const sel of locSelectors) {
+        const el = headerContainer.querySelector(sel) || document.querySelector(sel);
+        if (el && el.innerText.trim()) {
+          location = el.innerText.trim();
+          break;
+        }
+      }
+
+      const salSelectors = [
+        // Handshake
+        '[data-hook="job-salary"]',
+        '[data-hook="salary"]',
+        '[class*="salary-range"]',
+        // ZipRecruiter
+        '.salary_text',
+        '[data-testid="job-salary"]',
+        '[class*="salary_text"]',
+        '[class*="compensation"]',
+        // Glassdoor & Indeed
+        '[data-test="detailSalary"]',
+        '[data-test="pay-period"]',
+        '[class*="JobDetails_salary"]',
+        '[class*="SalaryEstimate"]',
+        '[data-test="salaries"]',
+        '[class*="BasePayRange"]',
+        '#salaryInfoAndJobType',
+        '[data-testid="jobsearch-JobDescriptionSection-section--salary"]',
+        '[data-testid="attribute_snippets_test_title"]'
+      ];
+      for (const sel of salSelectors) {
+        const el = headerContainer.querySelector(sel) || document.querySelector(sel);
+        if (el && el.innerText.trim()) {
+          salary = el.innerText.trim();
+          break;
+        }
+      }
+    }
+
+    if (!jk) {
+      jk = lastClickedCard?.jk || '';
+    }
+
+    // 11. Search Card fallback (Indeed, Glassdoor, ZipRecruiter, LinkedIn, Handshake list cards)
+    if (!title || !company) {
+      const activeCard = 
+        // Active / Selected Card across platforms
+        document.querySelector('[data-hook="jobs-card"][class*="active"], [data-hook="jobs-card"].selected, [data-test="job-listing-item"].selected, [data-test="job-listing-item"][aria-selected="true"], [data-test="jobListing"].selected, [class*="jobListItem"][class*="selected"], [class*="jobCard"][class*="selected"], li.selected:has([data-test="job-title"]), li[data-id][aria-selected="true"], article.job_result.selected, article[data-testid="job-card"][aria-selected="true"], article.selected, li.selected, .jobs-search-results-list__list-item--active, li.jobs-search-results__list-item--active, li.job-card-container--clickable') ||
+        // First visible list card
+        document.querySelector('[data-hook="jobs-card"], [data-hook="search-result"], a[href*="/stu/jobs/"], article.job_result, article[data-testid="job-card"], [class*="job_result"], [class*="jobCard"], div.job_seen_beacon, div[data-jk], li.css-5lfssm, div.cardOutline, [data-test="job-listing-item"], li[data-test="jobListing"], li[data-id], article[data-test="job-card"], li.job-listing, .jobs-search-results__list-item, div.job-card-container');
+
+      if (activeCard) {
+        if (!title) {
+          const tEl = activeCard.querySelector('[data-hook="job-title"], a[href*="/stu/jobs/"] h2, h1.job_title, h2.job_title, [class*="job_title"], a.job_link, a[data-test="job-title"], a[data-test="job-link"], [class*="jobTitle"], a.jcs-JobTitle, h2.jobTitle span[title], h2.jobTitle, a[id^="job_"], a.job-card-list__title, a[class*="job-card-list__title"], h2, h1, a');
+          if (tEl && tEl.innerText.trim()) {
+            const clean = cleanJobTitle(tEl.innerText);
+            if (!isSearchHeader(clean) && clean.length > 2 && clean.length < 120) title = clean;
+          }
+        }
+        if (!company) {
+          const cEl = activeCard.querySelector('[data-hook="employer-name"], a[href*="/stu/employers/"], a[href*="/company/"], .job-card-container__company-name, .job-card-container__primary-description a, .artdeco-entity-lockup__subtitle a, .artdeco-entity-lockup__subtitle, a.hiring_company_text, [data-testid="company-name"], [data-testid="hiring-company"], [class*="hiring_company"], [class*="company_name"], [data-test="employer-short-name"], [data-test="employer-name"], [class*="employerName"], .companyName, span.css-63koeb, .job-card-container__primary-description, span.job-card-container__primary-description');
+          if (cEl && cEl.innerText.trim()) {
+            const clean = cEl.innerText.replace(/[\d.]+\s*[★*]+.*$/g, '').trim();
+            if (!isJunkCompany(clean)) company = clean;
+          }
+        }
+        if (!jk) {
+          jk = activeCard.getAttribute('data-jk') || activeCard.getAttribute('data-id') || activeCard.getAttribute('data-jobid') || activeCard.getAttribute('data-job-id') || '';
+          if (!jk) {
+            const hsLnk = activeCard.querySelector('a[href*="/stu/jobs/"], a[href*="/stu/postings/"]');
+            const hsM = hsLnk?.href?.match(/\/stu\/(?:jobs|postings)\/(\d+)/);
+            if (hsM) jk = hsM[1];
+          }
+        }
+      }
+    }
+
+    // 12. Smart fallback if fullBodyText was successfully captured but title/company were missed
+    if (fullBodyText && fullBodyText.length >= 80) {
+      if (!title || title.startsWith('Select a Job')) {
+        // Try document-wide h1 / h2 in LinkedIn job view
+        const topH1 = document.querySelector('.jobs-search__job-details h1, .jobs-details h1, .job-view-layout h1, .jobs-unified-top-card__job-title, .job-details-jobs-unified-top-card__job-title, h1.t-24');
+        if (topH1 && topH1.innerText.trim()) {
+          const cleanH1 = cleanJobTitle(topH1.innerText);
+          if (!isSearchHeader(cleanH1) && cleanH1.length > 2 && cleanH1.length < 120) {
+            title = cleanH1;
+          }
+        }
+        // If still no title, prefer lastClickedCard.title or look for standard role patterns
+        if (!title || title.startsWith('Select a Job') || isSearchHeader(title)) {
+          if (lastClickedCard?.title && !isSearchHeader(lastClickedCard.title)) {
+            title = cleanJobTitle(lastClickedCard.title);
+          } else {
+            const roleMatch = fullBodyText.match(/(?:looking for|hiring|seeking)\s+(?:an?\s+)?([A-Za-z0-9\s/&,.-]{3,60}?(?:Engineer|Developer|Manager|Analyst|Scientist|Architect|Specialist|Director|Lead|Consultant|Designer))/i);
+            if (roleMatch && roleMatch[1] && !isSearchHeader(roleMatch[1])) {
+              title = cleanJobTitle(roleMatch[1]);
+            }
+          }
+        }
+      }
+
+      if (!company || isJunkCompany(company)) {
+        const topComp = document.querySelector('.job-details-jobs-unified-top-card a[href*="/company/"], .scaffold-layout__detail a[href*="/company/"], a[href*="/company/"], .job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .job-details-jobs-unified-top-card__primary-description a');
+        if (topComp && topComp.innerText.trim()) {
+          const cleanComp = topComp.innerText.replace(/[\d.]+\s*[★*]+.*$/g, '').trim();
+          if (!isJunkCompany(cleanComp)) {
+            company = cleanComp;
+          }
+        }
+        if ((!company || isJunkCompany(company)) && lastClickedCard?.company && !isJunkCompany(lastClickedCard.company)) {
+          company = lastClickedCard.company;
+        }
+        if (!company || isJunkCompany(company)) {
+          company = 'Target Employer';
+        }
+      }
+    }
+
+    if (!title) title = `Select a Job on ${platform}`;
+    if (!company) company = 'Click any job posting to evaluate';
+
+    // If fullBodyText is still empty / skeleton loading on Indeed, check if we have lastClickedCard
+    let isProvisionalPreview = false;
+    let provisionalScore = 0;
+    if ((!fullBodyText || fullBodyText.length < 180) && lastClickedCard && (Date.now() - (lastClickedCard.clickedAt || 0) < 20000)) {
+      if (lastClickedCard.title && (title.startsWith('Select a Job') || !title)) {
+        title = lastClickedCard.title;
+      }
+      if (lastClickedCard.company && (company.startsWith('Click any') || !company)) {
+        company = lastClickedCard.company;
+      }
+      if (!fullBodyText && lastClickedCard.snippet) {
+        fullBodyText = lastClickedCard.snippet;
+      }
+      if (lastClickedCard.score > 0) {
+        provisionalScore = lastClickedCard.score;
+      }
+      isProvisionalPreview = true;
+      extractionSource = `${platform} Card Preview Ingestion`;
+    }
+
+    const hasRealBody = Boolean(fullBodyText && fullBodyText.length >= 80);
+    const freshness = extractJobFreshness(activePane || document.body, fullBodyText);
+
+    return {
+      title,
+      company,
+      location,
+      salary,
+      fullBodyText,
+      characterCount: fullBodyText ? fullBodyText.length : 0,
+      wordCount: fullBodyText ? fullBodyText.split(/\s+/).filter(Boolean).length : 0,
+      platform,
+      extractionSource,
+      isSchemaOrg,
+      hasRealBody,
+      jk,
+      freshness,
+      isProvisionalPreview,
+      provisionalScore
+    };
+  }
+
+  /**
+   * Multi-Industry Domain Signatures & Disambiguation Engine
+   * Eliminates cross-industry polysemy: GCP (Good Clinical Practice vs Cloud), CAD (Cardiology vs AutoCAD), Pipeline, etc.
+   */
+  const INDUSTRY_DOMAINS = {
+    BIOTECH_PHARMA: {
+      code: 'BIOTECH_PHARMA',
+      label: 'Biotech & Pharma',
+      signature: /\b(clinical trial|clinical study|pharmaceutical|biotech|biotechnology|drug development|oncology|pharmacology|in-vivo|in-vitro|fda submission|ind application|nda submission|good clinical practice|gcp guidelines|ich guidelines|gmp|glp|bioassay|cell culture|pipetting|molecular biology|elisa|pcr|western blot|medicinal chemistry|pharmacokinetics|cro|biostatistics|recombinant|mrna|antibody|cro management|small molecule|biologics|preclinical)\b|(?:臨床試驗|生技|生物科技|藥物研發|生化|臨床研究|醫藥)/i
+    },
+    HEALTHCARE_MEDICINE: {
+      code: 'HEALTHCARE_MEDICINE',
+      label: 'Healthcare & Clinical Medicine',
+      signature: /\b(patient care|hospital|physician|nurse|practitioner|clinical practice|diagnosis|medical doctor|inpatient|outpatient|cardiology|coronary|pathology|surgery|electronic health record|ehr|emr|epic system|cerner|hipaa|medical terminology|vital signs|patient triage|clinical workflow|intensive care|icu|pediatric|oncology clinic)\b|(?:醫療|護理|醫師|醫院|臨床醫學|病患照護|電子病歷)/i
+    },
+    FINANCE_BANKING: {
+      code: 'FINANCE_BANKING',
+      label: 'Finance, Banking & Accounting',
+      signature: /\b(investment banking|private equity|hedge fund|equity research|valuation model|financial modeling|dcf|lbo|comps|portfolio management|fp&a|financial planning|gaap|sec reporting|10-k|10-q|m&a|mergers and acquisitions|bloomberg terminal|factset|derivatives|capital markets|balance sheet|income statement|general ledger|ebitda|audit senior|financial controller)\b|(?:投資銀行|私募基金|財務分析|會計|審計|金融|銀行|財務報表|風控|證券)/i
+    },
+    CIVIL_ARCHITECTURE: {
+      code: 'CIVIL_ARCHITECTURE',
+      label: 'Civil Engineering & Architecture',
+      signature: /\b(civil engineer|civil engineering|architectural design|architect|construction management|autocad|revit|building information modeling|\bbim\b|structural engineering|structural design|mep|hvac|steel frame|timber frame|concrete design|building code|site inspection|surveying|blueprints|dwg|contractor|osha 30|osha 10|general contractor|leed)\b|(?:土木工程|建築設計|結構工程|營造|工程顧問|建築師|施工管理|測量)/i
+    },
+    TECH_SOFTWARE: {
+      code: 'TECH_SOFTWARE',
+      label: 'Software Engineering & Cloud',
+      signature: /\b(software engineer|software developer|backend developer|frontend developer|full stack|web developer|systems programming|devops|cloud infrastructure|database administrator|microservices|distributed systems|computer science|programming language|github|docker|kubernetes|aws|api design|full-stack|c\+\+|golang|react|spring boot)\b|(?:軟體工程師|软件工程师|後端工程師|后端工程师|前端工程師|前端工程师|全端工程師|全栈工程师|程式設計師|程序开发|軟體開發|软件开发|系統架構|系统架构|資料庫|数据库|微服務|微服务|雲端|云计算|雲原生|云原生|分散式|分布式|資訊工程|程式開發)/i
+    }
+  };
+
+  /**
+   * Bilingual Tech Stack Semantic Mapping Dictionary (繁簡中英雙語對照詞典)
+   * Bridges Traditional & Simplified Chinese technical terms in Taiwan, HK, and Singapore JDs
+   * with standard English candidate skills & resume achievements.
+   */
+  const BILINGUAL_TECH_MAP = [
+    // 1. Databases, SQL & Storage
+    {
+      pattern: /(?:資料庫|數據庫|關聯式資料庫|关系型数据库|資料庫設計|数据库设计|資料庫優化|数据库优化|資料庫管理|資料庫維護|資料結構設計|sql語法|sql查詢|sql查询|資料模型|数据模型|rdbms|relational\s+database)/i,
+      synonyms: ['sql', 'database', 'mysql', 'postgresql', 'postgres', 'relational database', 'data model', 'rdbms', 'oracle', 'sqlite', 'redis', 'nosql', 'storage', 'data relationship'],
+      canonical: 'SQL / Relational Databases'
+    },
+    {
+      pattern: /(?:非關聯式|nosql|快取|緩存|記憶體資料庫|鍵值存儲|分佈式緩存|分布式缓存)/i,
+      synonyms: ['nosql', 'redis', 'mongodb', 'elasticsearch', 'cache', 'caching', 'memcached', 'dynamodb'],
+      canonical: 'Redis / MongoDB / NoSQL'
+    },
+    // 2. Microservices & Distributed Architecture
+    {
+      pattern: /(?:微服務|微服务|微服務架構|微服务架构|服務化|分布式微服务|服務網格|服务网格)/i,
+      synonyms: ['microservices', 'microservice', 'distributed systems', 'spring boot', 'spring cloud', 'grpc', 'service mesh'],
+      canonical: 'Distributed Systems & Microservices'
+    },
+    {
+      pattern: /(?:分散式系統|分布式系统|分散式架構|分布式架构|分散式運算|分布式计算|高併發|高并发|高負載|高可用|高可用性|負載平衡|负载均衡|容災|集群)/i,
+      synonyms: ['distributed systems', 'distributed', 'high concurrency', 'concurrency', 'scalability', 'high availability', 'load balancing', 'clustering', 'fault tolerant'],
+      canonical: 'High Concurrency & Scalability'
+    },
+    {
+      pattern: /(?:系統架構|系统架构|軟體架構|软件架构|架構設計|架构设计|系統設計|系统设计|架構規劃|架构规划|軟體工程師|软件工程师|後端工程師|后端工程师|全端工程師|全栈工程师|技術架構)/i,
+      synonyms: ['system architecture', 'software architecture', 'system design', 'software engineer', 'backend', 'full stack', 'technical lead', 'software development'],
+      canonical: 'System Architecture & Design'
+    },
+    // 3. Cloud Platforms, Containers & DevOps
+    {
+      pattern: /(?:雲端|雲計算|云计算|云原生|雲端平台|云服务|雲服務|雲架構|云架构|雲端運算|雲服務架構)/i,
+      synonyms: ['aws', 'cloud', 'gcp', 'azure', 'alicloud', 'cloud infrastructure', 'cloud computing'],
+      canonical: 'Cloud Infrastructure (AWS/GCP)'
+    },
+    {
+      pattern: /(?:容器化|容器|虛擬化|虚拟化|容器技術|容器編排|容器编排)/i,
+      synonyms: ['docker', 'kubernetes', 'k8s', 'container', 'containers', 'containerization'],
+      canonical: 'Docker & Kubernetes'
+    },
+    {
+      pattern: /(?:持續整合|持續交付|持續部署|持续集成|持续交付|持續構建|自動化部署|自動化發布|自動化構建|部署流程|發布流程|運維|維運|devops)/i,
+      synonyms: ['ci/cd', 'jenkins', 'devops', 'pipeline', 'deployment', 'automated pipeline', 'ci/cd pipeline'],
+      canonical: 'CI/CD & DevOps'
+    },
+    // 4. Software Programming & Engineering
+    {
+      pattern: /(?:軟體開發|软件开发|程式開發|程序开发|程式設計|程序设计|後端開發|后端开发|系統開發|系统开发|程式撰寫|代碼編寫|編碼能力)/i,
+      synonyms: ['software development', 'software engineer', 'backend', 'java', 'python', 'go', 'golang', 'c++', 'software dev', 'coding'],
+      canonical: 'Software Development & Engineering'
+    },
+    {
+      pattern: /(?:前端開發|前端开发|前端架構|前端框架|前端工程|前端介面|使用者介面|前端技術)/i,
+      synonyms: ['frontend', 'react', 'vue', 'angular', 'javascript', 'typescript', 'html', 'css', 'next.js', 'web development'],
+      canonical: 'Frontend Architecture & Frameworks'
+    },
+    {
+      pattern: /(?:全端開發|全栈开发|全端工程|全栈工程)/i,
+      synonyms: ['full stack', 'fullstack', 'frontend', 'backend', 'react', 'node', 'java', 'full-stack'],
+      canonical: 'Full Stack Development'
+    },
+    // 5. APIs, Interfaces & Network Protocols
+    {
+      pattern: /(?:應用程式介面|應用程序介面|介面設計|接口设计|接口開發|介面開發|網絡服務|网络服务|restful\s*api|api\s*串接|api\s*設計|接口對接)/i,
+      synonyms: ['api', 'rest', 'restful', 'graphql', 'endpoints', 'api design', 'swagger', 'postman'],
+      canonical: 'REST APIs / GraphQL'
+    },
+    // 6. Agile Methodologies & Team Collaboration
+    {
+      pattern: /(?:敏捷開發|敏捷开发|敏捷管理|敏捷迭代|scrum\s*流程|敏捷協作)/i,
+      synonyms: ['agile', 'scrum', 'kanban', 'sprint', 'jira', 'confluence'],
+      canonical: 'Agile & Project Methodologies'
+    },
+    {
+      pattern: /(?:跨團隊|跨部門|跨團隊協作|跨部门协作|專案管理|项目管理|團隊領導|团队管理|團隊協作|团队协作|溝通協調|沟通协调|團隊合作)/i,
+      synonyms: ['cross-functional', 'leadership', 'team', 'pmo', 'project management', 'collaboration', 'stakeholder management'],
+      canonical: 'Cross-Functional Leadership & PMO'
+    },
+    // 7. Testing & Quality Assurance
+    {
+      pattern: /(?:單元測試|单元测试|自動化測試|自动化测试|整合測試|集成测试|品質保證|质量保证|測試框架|測試案例|測試驅動開發|tdd|壓測|壓力測試)/i,
+      synonyms: ['unit test', 'testing', 'qa', 'automated test', 'jest', 'mocha', 'vitest', 'integration test', 'tdd', 'software testing'],
+      canonical: 'Unit Testing & QA'
+    },
+    // 8. Refactoring & Code Quality
+    {
+      pattern: /(?:程式碼優化|代码优化|系統重構|系统重构|效能調優|性能优化|代碼審查|程式碼審查|code\s*review|代碼重構|技術債|模組化|模組設計)/i,
+      synonyms: ['system refactoring', 'optimization', 'performance tuning', 'code review', 'refactoring', 'clean code'],
+      canonical: 'System Refactoring & Code Quality'
+    },
+    // 9. Algorithms, Big Data & Analytics
+    {
+      pattern: /(?:演算法|算法|資料結構|数据结构|演算法設計)/i,
+      synonyms: ['algorithm', 'algorithms', 'data structure', 'data structures', 'leetcode'],
+      canonical: 'Algorithms & Data Structures'
+    },
+    {
+      pattern: /(?:大數據|大数据|資料分析|数据分析|資料工程|数据工程|資料處理|数据处理|資料管線|数据管道|商業智慧|商业智能)/i,
+      synonyms: ['data analysis', 'big data', 'data pipeline', 'analytics', 'data engineering', 'etl', 'elasticsearch'],
+      canonical: 'Data Engineering & Analytics'
+    },
+    // 10. AI / Machine Learning
+    {
+      pattern: /(?:人工智慧|人工智能|機器學習|机器学习|深度學習|深度学习|模型訓練|模型评估|神經網絡|神经网络|自然語言處理)/i,
+      synonyms: ['machine learning', 'deep learning', 'ai', 'artificial intelligence', 'ml', 'pytorch', 'tensorflow', 'nlp'],
+      canonical: 'Machine Learning & AI'
+    },
+    // 11. Security & Compliance
+    {
+      pattern: /(?:資訊安全|信息安全|網路安全|网络安全|資安|資料加密|数据加密|身分驗證|身份认证|安全合規)/i,
+      synonyms: ['security', 'encryption', 'cybersecurity', 'auth', 'oauth', 'jwt', 'security clearance'],
+      canonical: 'Security & Data Protection'
+    }
+  ];
+
+  /**
+   * Universal Dynamic JD Requirement Extractor (NLP Phrase Mining)
+   * Dissects arbitrary job postings to extract genuine functional requirements and duties
+   * Guarantees ZERO fake jargon fallbacks across English, Traditional & Simplified Chinese JDs
+   */
+  function extractDynamicJdRequirements(combinedText, fullBodyText, domain) {
+    if (!fullBodyText && !combinedText) return [];
+    const source = (fullBodyText || combinedText);
+
+    // Administrative & non-skill stop patterns (salary, travel, email, legal disclaimers, Taiwan/HK/SG admin terms)
+    const ADMIN_NOISE_REGEX = /\b(salary|hourly|\$\d+|send res|send resume|email to|hr@|jobs@|travel|relocate|unanticipated|equal opportunity|eeo|benefits|401k|dental|vision|health insurance|full time|part time|on-site|remote|hybrid|irvine|los angeles|california|applicant must|all qualified applicants|background check|drug test|equal opportunity employer)\b|(?:\b(?:nt\$|hk\$|s\$|\$)\s*\d+|(?:月薪|年薪|面議|薪資|福利待遇|勞保|健保|勞健保|特休|三節|團保|全職|兼職|工作地點|上班地點|上班時段|休假制度|出差外派|科系要求|具備駕照|應徵方式|聯絡方式|男女不拘|依法投保|年終獎金|績效獎金))/i;
+
+    const extracted = [];
+    const seenLabels = new Set();
+
+    // 1. Clean explicit section headers (both English & Traditional/Simplified Chinese)
+    const cleanSource = source
+      .replace(/(?:^|\n)\s*(?:Basic|Preferred|Minimum|Required)?\s*Qualifications\s*:?/gim, '\n')
+      .replace(/(?:^|\n)\s*(?:Job\s+duties|Key\s+Responsibilities|Core\s+Responsibilities|Responsibilities)\s*:?/gim, '\n')
+      .replace(/(?:^|\n)\s*(?:Requirements|Role\s+Requirements|Job\s+Requirements)\s*:\s*/gim, '\n')
+      .replace(/(?:^|\n)\s*What\s+you(?:'ll| will)\s+do\s*:?/gim, '\n')
+      .replace(/(?:^|\n)\s*(?:工作內容|主要職責|崗位職責|工作職責|工作需求|條件要求|應徵條件|應徵要求|技能要求|任職要求|任职资格|加分條件|加分項目|職位要求|具備條件|必要條件|其他條件)\s*[:：]?/gim, '\n');
+
+    // Split clauses by punctuation, bullet markers, and Chinese sentence/clause delimiters
+    const rawClauses = cleanSource.split(/(?:[;\n•\r·\*\t；。]|\d+[\.、]\s*)/);
+
+    const STOPWORDS = new Set(['and', 'the', 'for', 'with', 'from', 'that', 'this', 'have', 'has', 'had', 'our', 'you', 'your', 'will', 'all', 'such', 'making', 'writing', 'using', 'into', 'well', 'across', 'including', 'key', 'etc', 'able', 'per', 'their', 'must']);
+
+    for (let raw of rawClauses) {
+      let clause = raw.trim();
+      if (clause.length < 6 || clause.length > 130) continue;
+      if (ADMIN_NOISE_REGEX.test(clause)) continue;
+
+      // Filter out explicit negation phrases ("not required", "no experience needed", etc.)
+      const isNegated = /\b(not\s+required|not\s+necessary|no\s+prior\s+(?:experience|knowledge)\s+(?:needed|required)|optional|is\s+a\s+plus(?:\s+only)?)\b|(?:不拘|不限|無經驗可|非必要)/i.test(clause);
+      if (isNegated) continue;
+
+      // Clean leading/trailing punctuation, bullet markers, conjunctions & boilerplates (EN + ZH)
+      clause = clause
+        .replace(/^[\s\-–—•*·>、一二三四五六七八九十\d\.\)]+\s*/, '')
+        .replace(/^(?:and|or|&|\+|as well as)\s+/i, '')
+        .replace(/^(?:must have|ability to|responsible for|experience (?:working in|working with|developing in|leading|managing|building|designing|using|with|in)|prior experience (?:with|in)|hands-on experience (?:with|in)|proven experience (?:with|in)|expert level proficiency in|expert level in|extensive experience (?:with|in)|demonstrated experience (?:with|in)|expertise in|proficient in|proficient with|proficiency in|including|knowledge of|proven track record in|familiarity with|strong understanding of|understanding of|demonstrated|solid)\s+/i, '')
+        .replace(/^(?:須具備|需具備|具備|熟悉|精通|良好|熟練|擅長|負責|協助|配合|理解|掌握|具|有)(?:\s+|[與和跟對])?/i, '')
+        .replace(/^(?:and|or|&|\+|as well as)\s+/i, '')
+        .replace(/[.,;:，。；：]+$/, '')
+        .trim();
+
+      if (clause.length < 4) continue;
+
+      // Check if clause has technical / functional substance (English + Traditional & Simplified Chinese)
+      const hasSubstance = /\b(node|next\.js|express|react|javascript|typescript|python|java|golang|vue|angular|c\+\+|c#|tailwind|scss|css|html|jest|mocha|vitest|design|dvlp|develop|architecture|system|data|model|interface|api|code|program|test|manage|analysis|clinical|patient|cad|gaap|audit|pipeline|gcp|bim|circuit|hardware|network|security|cloud|database|sql|agile|scrum|lean)\b/i.test(clause) ||
+        /(軟體|軟件|程式|程序|開發|架构|架構|系統|系统|資料庫|数据库|微服務|微服务|雲端|云计算|云原生|敏捷|測試|测试|前端|後端|后端|全端|全栈|演算法|算法|介面|接口|網絡|网络|資安|信息安全|容器|併發|并发|高可用|模組|模块|重構|重构|維運|运维|管線|管道|工程師|工程师|平台|服務)/.test(clause);
+      if (!hasSubstance) continue;
+
+      // Synthesize clean display title
+      let cleanTitle = clause.charAt(0).toUpperCase() + clause.slice(1);
+      const isChinese = /[\u4e00-\u9fa5]/.test(cleanTitle);
+      const maxLen = isChinese ? 24 : 35;
+      if (cleanTitle.length > maxLen) {
+        cleanTitle = cleanTitle.substring(0, maxLen - 3).trim() + '…';
+      }
+
+      // Keep Chinese characters in deduplication key so Chinese requirements aren't collapsed to ""
+      const dedupeKey = cleanTitle.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, '');
+      if (!dedupeKey) continue;
+
+      if (!seenLabels.has(dedupeKey)) {
+        seenLabels.add(dedupeKey);
+        
+        // Preserve short symbols & critical tech tokens (C++, C#, Go, AI, ML, CI/CD) and Chinese characters
+        const normalized = clause.toLowerCase()
+          .replace(/\bc\+\+/g, 'cpp_token')
+          .replace(/\bc#/g, 'csharp_token')
+          .replace(/\bci\/cd\b/g, 'cicd_token')
+          .replace(/[^a-z0-9_\s\u4e00-\u9fa5]/g, ' ');
+
+        const ALLOWED_SHORT = new Set(['go', 'ai', 'ml', 'qa', 'r']);
+        const meaningfulWords = normalized.split(/\s+/)
+          .map(w => w === 'cpp_token' ? 'c++' : (w === 'csharp_token' ? 'c#' : (w === 'cicd_token' ? 'ci/cd' : w)))
+          .filter(w => (w.length > 2 || ALLOWED_SHORT.has(w) || w === 'c++' || w === 'c#' || w === 'ci/cd' || /[\u4e00-\u9fa5]/.test(w)) && !STOPWORDS.has(w));
+
+        // Inject canonical English synonyms into the key if matching Chinese tech terms
+        for (const bMap of BILINGUAL_TECH_MAP) {
+          if (bMap.pattern.test(clause)) {
+            meaningfulWords.push(...bMap.synonyms.slice(0, 3));
+          }
+        }
+
+        extracted.push({
+          name: cleanTitle,
+          fullName: clause,
+          key: (meaningfulWords.length > 0 ? meaningfulWords.join('|') : clause.toLowerCase()),
+          isDynamic: true
+        });
+      }
+
+      if (extracted.length >= 6) break;
+    }
+
+    return extracted;
+  }
+
+  /**
+   * Universal Semantic Matching: Determine if candidate satisfies a given requirement
+   * Checks explicit skills, resume text, synonyms, and engineering equivalents
+   * Equipped with Bilingual Cross-Lingual Tech Mapping (繁簡中英雙向穿透)
+   */
+  function candidateSatisfiesRequirement(reqSkill, cand) {
+    const candSkills = cand.skills || [];
+    const rawResume = (cand.rawResumeText || '').toLowerCase();
+    const reqNameLower = reqSkill.name.toLowerCase();
+    const reqFullNameLower = (reqSkill.fullName || reqSkill.name || '').toLowerCase();
+
+    // 0. Bilingual Cross-Lingual Semantic Mapping for Chinese Job Postings (Taiwan, HK, Singapore)
+    for (const bMap of BILINGUAL_TECH_MAP) {
+      if (bMap.pattern.test(reqNameLower) || bMap.pattern.test(reqFullNameLower) || (reqSkill.key && bMap.pattern.test(reqSkill.key))) {
+        // Candidate satisfies if ANY of their English skills match the mapped synonyms
+        const hasBilingualSkill = candSkills.some(s => {
+          const sLower = s.toLowerCase();
+          return bMap.synonyms.some(syn => sLower === syn || sLower.includes(syn) || syn.includes(sLower));
+        });
+        if (hasBilingualSkill) return true;
+
+        if (rawResume) {
+          const hasBilingualResume = bMap.synonyms.some(syn => {
+            try {
+              if (syn.includes('+') || syn.includes('#') || syn.includes('/')) {
+                return rawResume.includes(syn);
+              }
+              const reg = new RegExp(`\\b${syn}\\b`, 'i');
+              return reg.test(rawResume);
+            } catch (e) {
+              return rawResume.includes(syn);
+            }
+          });
+          if (hasBilingualResume) return true;
+        }
+      }
+    }
+
+    // 1. Direct candidate skill list match
+    const ALLOWED_SHORT_KEYS = new Set(['c++', 'c#', 'go', 'ai', 'ml', 'qa', 'r', 'ci/cd']);
+    const keys = (reqSkill.key || '').split('|').map(k => k.replace(/\\/g, '').trim().toLowerCase()).filter(Boolean);
+    const directSkillMatch = candSkills.some(s => {
+      const sLower = s.toLowerCase();
+      if (reqNameLower.includes(sLower) || sLower.includes(reqNameLower)) return true;
+      return keys.some(k => (k.length > 2 || ALLOWED_SHORT_KEYS.has(k)) && (sLower === k || sLower.includes(k) || k.includes(sLower)));
+    });
+    if (directSkillMatch) return true;
+
+    // 2. Check full raw resume text for any of the key requirement tokens
+    if (rawResume) {
+      const resumeTokenMatch = keys.some(k => {
+        if (k.length <= 2 && !ALLOWED_SHORT_KEYS.has(k)) return false;
+        try {
+          if (k.includes('+') || k.includes('#')) {
+            const symRegex = new RegExp(`(?:^|[^a-z0-9_#])(${k.replace(/\+/g, '\\+')})(?:$|[^a-z0-9_#])`, 'i');
+            return symRegex.test(rawResume);
+          }
+          const regex = new RegExp(`\\b${k}\\b`, 'i');
+          return regex.test(rawResume);
+        } catch (e) {
+          return rawResume.includes(k);
+        }
+      });
+      if (resumeTokenMatch) return true;
+    }
+
+    // 3. Domain & Functional Equivalency Maps
+    // C / C++ / Embedded ecosystem
+    if (/\b(c\+\+|cpp|c\/c\+\+|embedded)\b/i.test(reqNameLower) || keys.includes('c++')) {
+      if (candSkills.some(s => /\b(c\+\+|cpp|embedded)\b/i.test(s)) || (rawResume && /\bc\+\+\b/i.test(rawResume))) return true;
+    }
+
+    // Go / Golang ecosystem
+    if (/\b(golang|go)\b/i.test(reqNameLower) || keys.includes('go')) {
+      if (candSkills.some(s => /\b(go|golang)\b/i.test(s)) || (rawResume && /\bgolang\b/i.test(rawResume))) return true;
+    }
+    // Node.js, Next.js, Express, JavaScript/React fullstack ecosystem
+    if (/\b(node|next(\.js)?|express(\.js)?)\b/i.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(node|next|express)\b/i.test(s))) return true;
+      if (candSkills.some(s => /javascript/i.test(s)) && candSkills.some(s => /react/i.test(s))) return true;
+      if (rawResume && /\b(node|next\.js|express)\b/i.test(rawResume)) return true;
+    }
+
+    // Testing frameworks (Jest, Mocha, Vitest, Unit Testing)
+    if (/\b(jest|mocha|vitest|unit test|testing framework)\b/i.test(reqNameLower) || /(單元測試|单元测试|自動化測試|测试)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(unit test|testing|qa)\b/i.test(s))) return true;
+    }
+
+    // Tailwind, CSS, SCSS, Frontend Styling
+    if (/\b(tailwind|scss|css|styling)\b/i.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(react|frontend|javascript|typescript|tailwind|css)\b/i.test(s))) return true;
+    }
+
+    // A: Software Architecture & System Design
+    if (/\b(system|architecture|design|component|module|interface)\b/i.test(reqNameLower) || /(系統架構|架构|架構設計|系統設計)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(system design|microservices|distributed|software architecture|backend)\b/i.test(s))) {
+        return true;
+      }
+    }
+
+    // B: Software Development & Coding
+    if (/\b(software|develop|dvlp|engineering|program|coding|application|app)\b/i.test(reqNameLower) || /(軟體開發|程式開發|軟體工程|程序设计)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(java|python|c\+\+|go|javascript|typescript|c#|rust|software)\b/i.test(s))) {
+        return true;
+      }
+    }
+
+    // C: Databases, SQL, & Data Models
+    if (/\b(database|data model|relationship|sql|nosql|storage)\b/i.test(reqNameLower) || /(資料庫|數據庫|關聯式)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(sql|mysql|postgresql|postgres|database|redis|mongodb)\b/i.test(s))) {
+        return true;
+      }
+    }
+
+    // D: APIs & Microservices
+    if (/\b(api|interface|rest|graphql|microservice|endpoints)\b/i.test(reqNameLower) || /(微服務|微服务|接口|介面)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(api|rest|microservices|spring boot|node|fastapi)\b/i.test(s))) {
+        return true;
+      }
+    }
+
+    // E: Cross-Functional Teamwork & Coordination
+    if (/\b(business|coordinate|clarify|team|cross-functional|stakeholder|communication)\b/i.test(reqNameLower) || /(跨團隊|跨部門|團隊管理|專案管理)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(agile|scrum|cross-functional|pmo|leadership|management)\b/i.test(s)) || cand.yearsOfExperience >= 3) {
+        return true;
+      }
+    }
+
+    // F: Biotech / Pharma (GCP, Clinical, Regulatory)
+    if (/\b(gcp|clinical|trial|protocol|fda|glp|gmp)\b/i.test(reqNameLower) || /(臨床試驗|臨床|生技)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(gcp|clinical|trial|regulatory|cra|crc)\b/i.test(s)) || /\b(gcp|clinical trial|ich-gcp)\b/i.test(rawResume)) {
+        return true;
+      }
+    }
+
+    // G: Civil / Architecture (CAD, BIM, Revit)
+    if (/\b(cad|drafting|dwg|revit|bim)\b/i.test(reqNameLower) || /(土木|建築|結構)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(autocad|revit|bim|cad)\b/i.test(s)) || /\b(autocad|revit|bim)\b/i.test(rawResume)) {
+        return true;
+      }
+    }
+
+    // H: Finance / Banking (GAAP, Valuation, DCF)
+    if (/\b(gaap|valuation|financial model|dcf|lbo|accounting)\b/i.test(reqNameLower) || /(財務|會計|審計|金融)/.test(reqNameLower)) {
+      if (candSkills.some(s => /\b(gaap|financial model|valuation|cpa|accounting)\b/i.test(s)) || /\b(cpa|gaap|valuation)\b/i.test(rawResume)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  const COMPREHENSIVE_SKILL_CATALOG = [
+    // ==========================================
+    // --- TECH & SOFTWARE ENGINEERING ---
+    // ==========================================
+    { domain: 'TECH_SOFTWARE', name: 'Java / Spring Boot', key: '\\bjava\\b(?!\\s*script)|spring boot|spring cloud|jvm|quarkus' },
+    { domain: 'TECH_SOFTWARE', name: 'C++', key: 'c\\+\\+|modern c\\+\\+|cpp' },
+    { domain: 'TECH_SOFTWARE', name: 'C# / .NET', key: 'c#|\\.net|dotnet' },
+    { domain: 'TECH_SOFTWARE', name: 'Python', key: 'python|fastapi|django|flask' },
+    { domain: 'TECH_SOFTWARE', name: 'Go (Golang)', key: 'golang|go language|go programming|go backend|go developer' },
+    { domain: 'TECH_SOFTWARE', name: 'TypeScript / JavaScript', key: 'typescript|javascript' },
+    { domain: 'TECH_SOFTWARE', name: 'Linux / Unix', key: 'linux|unix|bash|shell scripting' },
+    { domain: 'TECH_SOFTWARE', name: 'Distributed Systems & Microservices', key: 'microservice|distributed system|distributed systems|微服務|微服务|分散式系統|分布式系统|分散式架構|分布式架构' },
+    { domain: 'TECH_SOFTWARE', name: 'High Concurrency & Scalability', key: 'high concurrency|concurrency|multithread|high throughput|高併發|高并发|高負載|高可用' },
+    { domain: 'TECH_SOFTWARE', name: 'Software Development & Engineering', key: 'software develop|software dev|dvlp app|dvlp apps|application develop|software developer|software engineer|software program|軟體開發|软件开发|程式開發|程序开发|程式設計' },
+    { domain: 'TECH_SOFTWARE', name: 'System Architecture & Design', key: 'system architecture|software architecture|softw architecture|system design|distributed architecture|system component|系統架構|系统架构|架構設計|架构设计|軟體架構' },
+    { domain: 'TECH_SOFTWARE', name: 'SQL / Relational Databases', key: 'sql|mysql|postgresql|postgres|database design|data model|data relationship|relational database|資料庫|數據庫|關聯式資料庫|关系型数据库|資料庫設計|數據庫設計' },
+    { domain: 'TECH_SOFTWARE', name: 'Redis / MongoDB / NoSQL', key: 'redis|mongodb|nosql|elasticsearch|快取|緩存|非關聯式' },
+    { domain: 'TECH_SOFTWARE', name: 'Docker & Kubernetes', key: 'docker|kubernetes|k8s|容器|虛擬化|容器化' },
+    { domain: 'TECH_SOFTWARE', name: 'Cloud Infrastructure (AWS/GCP)', key: 'aws|azure|google cloud|cloud computing|gcp cloud|雲端|雲計算|云计算|云原生|雲端平台|云服务' },
+    { domain: 'TECH_SOFTWARE', name: 'CI/CD & DevOps', key: 'ci/cd|jenkins|devops|deployment pipeline|ci\\/cd pipeline|automated pipeline|持續整合|持續交付|自動化部署' },
+    { domain: 'TECH_SOFTWARE', name: 'Unit Testing', key: 'unit test|integration test|automated test|qa test|e2e test|tdd|software testing|jest|mocha|vitest|單元測試|单元测试|自動化測試|自动化测试' },
+    { domain: 'TECH_SOFTWARE', name: 'Security Clearance (DoD)', key: 'secret clearance|dod clearance|top secret|security clearance|ts\\/sci' },
+    { domain: 'TECH_SOFTWARE', name: 'Algorithms & Data Structures', key: 'algorithm|algorithms|data structure|data structures|leetcode|演算法|算法|資料結構|数据结构' },
+    { domain: 'TECH_SOFTWARE', name: 'Machine Learning & AI', key: 'machine learning|deep learning|artificial intelligence|pytorch|tensorflow|機器學習|机器学习|人工智慧|人工智能' },
+    { domain: 'TECH_SOFTWARE', name: 'Computer Vision', key: 'computer vision|opencv' },
+    { domain: 'TECH_SOFTWARE', name: 'Natural Language Processing (NLP)', key: 'natural language processing|\\bnlp\\b|information retrieval' },
+    { domain: 'TECH_SOFTWARE', name: '3D Graphics & Rendering (OpenGL/Vulkan)', key: 'opengl|vulkan|directx|metal api|apple metal|glsl|hlsl|shader|3d rendering|rendering engine|3d graphics' },
+    { domain: 'TECH_SOFTWARE', name: 'Game Engines & AR/VR (Unity/Unreal)', key: 'unity|unreal|lens studio|lenscore|augmented reality|ar engine|virtual reality' },
+    { domain: 'TECH_SOFTWARE', name: 'React', key: 'react|vue|angular' },
+    { domain: 'TECH_SOFTWARE', name: 'Node.js / Express / Next.js', key: 'node\\.js|nodejs|node\\s+js|expressjs|express\\.js|next\\.js' },
+    { domain: 'TECH_SOFTWARE', name: 'REST APIs / GraphQL', key: 'developer-facing api|graphql|rest api|api design|restful|app interface|interface|api|api\\s*串接|應用程式介面' },
+
+    // ==========================================
+    // --- BIOTECH & PHARMACEUTICAL ---
+    // ==========================================
+    { domain: 'BIOTECH_PHARMA', name: 'Good Clinical Practice (GCP & ICH Guidelines)', key: 'gcp|good clinical practice|ich-gcp|clinical compliance' },
+    { domain: 'BIOTECH_PHARMA', name: 'Drug Discovery & Clinical Pipeline', key: 'drug pipeline|pipeline compound|preclinical pipeline|clinical trial pipeline' },
+    { domain: 'BIOTECH_PHARMA', name: 'Clinical Trial Operations (Phase I-IV / CRO)', key: 'clinical trial|phase i|phase ii|phase iii|phase iv|cro management|trial protocol' },
+    { domain: 'BIOTECH_PHARMA', name: 'Cell & Tissue Culture (Aseptic Technique)', key: 'cell culture|tissue culture|primary cells|aseptic technique|mammalian cell' },
+    { domain: 'BIOTECH_PHARMA', name: 'Molecular Assays (PCR / ELISA / Western Blot)', key: 'pcr|qpcr|elisa|western blot|flow cytometry|bioassay|hplc' },
+    { domain: 'BIOTECH_PHARMA', name: 'In-Vivo / In-Vitro Disease Models', key: 'in-vivo|in vivo|in-vitro|in vitro|animal model|xenograft|pharmacokinetics' },
+    { domain: 'BIOTECH_PHARMA', name: 'Regulatory Submissions (FDA / IND / NDA)', key: 'fda|ind application|nda submission|regulatory affairs|ema|bla submission' },
+    { domain: 'BIOTECH_PHARMA', name: 'GMP / GLP Quality Assurance & Validation', key: 'gmp|glp|equipment validation|iq/oq/pq|cleanroom|qa/qc pharmaceutical' },
+    { domain: 'BIOTECH_PHARMA', name: 'Lead Compound Discovery & Medicinal Chemistry', key: 'lead compound|medicinal chemistry|hit-to-lead|structure-activity|hts screening' },
+    { domain: 'BIOTECH_PHARMA', name: 'Biostatistics & Clinical Data Analysis (SAS/R)', key: 'sas|biostatistics|clinical data analysis|survival analysis|meddra' },
+
+    // ==========================================
+    // --- HEALTHCARE & CLINICAL MEDICINE ---
+    // ==========================================
+    { domain: 'HEALTHCARE_MEDICINE', name: 'Patient Care & Clinical Diagnosis', key: 'patient care|inpatient care|clinical diagnosis|patient triage|vital signs' },
+    { domain: 'HEALTHCARE_MEDICINE', name: 'Cardiovascular Care (Coronary Artery Disease - CAD)', key: 'coronary artery disease|cad patient|cardiology|congestive heart failure|ecg|ekg' },
+    { domain: 'HEALTHCARE_MEDICINE', name: 'Electronic Health Records (Epic / Cerner / EMR)', key: 'epic|cerner|electronic health record|emr system|ehr system|allscripts' },
+    { domain: 'HEALTHCARE_MEDICINE', name: 'HIPAA Compliance & Patient Privacy', key: 'hipaa|patient privacy|protected health information|phi compliance' },
+    { domain: 'HEALTHCARE_MEDICINE', name: 'Diagnostic & Treatment Protocols', key: 'diagnostic protocol|treatment plan|patient charting|infection control|bls|acls' },
+
+    // ==========================================
+    // --- CIVIL ENGINEERING & ARCHITECTURE ---
+    // ==========================================
+    { domain: 'CIVIL_ARCHITECTURE', name: 'Architectural CAD Drafting (AutoCAD / DWG)', key: 'autocad|cad drafting|cad drawings|dwg|microstation|drafting standards' },
+    { domain: 'CIVIL_ARCHITECTURE', name: 'Building Information Modeling (BIM & Revit)', key: 'revit|building information modeling|\\bbim\\b|navisworks|clash detection' },
+    { domain: 'CIVIL_ARCHITECTURE', name: 'Structural Engineering & Framing Analysis', key: 'structural engineering|structural framing|steel framework|concrete design|etabs|sap2000' },
+    { domain: 'CIVIL_ARCHITECTURE', name: 'MEP Systems & Piping/Plumbing Networks', key: 'mep|hvac design|piping design|plumbing engineering|drainage network' },
+    { domain: 'CIVIL_ARCHITECTURE', name: 'Construction Project Management & Site Safety (OSHA)', key: 'construction management|site superintendent|osha 30|osha 10|submittals|rfi process' },
+    { domain: 'CIVIL_ARCHITECTURE', name: 'Building Codes & Permitting (IBC / Local Codes)', key: 'building code|ibc|ada compliance|zoning|plan check|permitting' },
+
+    // ==========================================
+    // --- FINANCE, BANKING & ACCOUNTING ---
+    // ==========================================
+    { domain: 'FINANCE_BANKING', name: 'Financial Modeling & Valuation (DCF/LBO)', key: 'financial model|financial modeling|valuation model|dcf model|lbo model|comparable company' },
+    { domain: 'FINANCE_BANKING', name: 'Accounting & GAAP Standards', key: 'gaap|accounting principles|general ledger|us gaap|ifrs' },
+    { domain: 'FINANCE_BANKING', name: 'Advanced Financial Excel & Modeling', key: 'ms excel|microsoft excel|advanced excel|excel vba|excel modeling|pivot table' },
+    { domain: 'FINANCE_BANKING', name: 'Corporate FP&A & Capital Budgeting', key: 'fp&a|annual budget|budget planning|budget management|budgeting & forecasting|capex|opex' },
+    { domain: 'FINANCE_BANKING', name: 'Data Visualization (Tableau/PowerBI)', key: 'tableau|powerbi|power bi' },
+    { domain: 'FINANCE_BANKING', name: 'ERP Systems (SAP/Oracle/NetSuite)', key: 'sap erp|sap s\\/4hana|oracle erp|netsuite|yardi|argus' },
+    { domain: 'FINANCE_BANKING', name: 'Audit & Internal Controls (SOX)', key: 'financial audit|internal audit|audit compliance|sox|sox compliance|internal controls' },
+    { domain: 'FINANCE_BANKING', name: 'M&A Advisory & Due Diligence', key: 'mergers & acquisitions|m&a|due diligence|deal execution|pitch book' },
+    { domain: 'FINANCE_BANKING', name: 'Financial Risk Management (AML / KYC)', key: 'aml|anti-money laundering|kyc|risk assessment|regulatory compliance finance' },
+
+    // ==========================================
+    // --- COMMON PROFESSIONAL (ALL DOMAINS) ---
+    // ==========================================
+    { domain: 'COMMON', name: 'Agile & Project Methodologies', key: 'agile|scrum|kanban|pmp|敏捷開發|敏捷开发|敏捷|敏捷管理' },
+    { domain: 'COMMON', name: 'Cross-Functional Leadership & PMO', key: 'cross-functional leadership|cross-functional team|stakeholder management|pmo|program management|跨團隊|跨部門|團隊管理|專案管理' }
+  ];
+
+  function detectJobDomain(text, jobTitle = '') {
+    if (!text && !jobTitle) return { code: 'GENERAL', label: 'General Professional' };
+
+    const titleLower = (jobTitle || '').toLowerCase();
+    const textLower = (text || '').toLowerCase();
+
+    // 1. High-priority Title Check (Title is the strongest indicator of domain - EN + ZH)
+    if (/\b(financial analyst|finance analyst|finance|accounting|accountant|auditor|audit|risk analyst|risk manager|portfolio manager|investment banking|equity research|credit analyst|treasury|tax analyst|underwriter)\b|(?:財務|會計|審計|金融|風控)/i.test(titleLower)) {
+      return INDUSTRY_DOMAINS.FINANCE_BANKING;
+    }
+    if (/\b(clinical|nurse|physician|doctor|pharmacist|pharmacy|patient care|assessor|functional assessor|medical|healthcare|therapist|biomedical)\b|(?:醫療|護士|護理師|醫師|藥師|生技)/i.test(titleLower)) {
+      return INDUSTRY_DOMAINS.HEALTHCARE_MEDICINE;
+    }
+    if (/\b(civil engineer|architectural|architect(?!ure\s+(?:software|cloud|systems?))|construction|structural engineer|building)\b|(?:土木|建築設計|結構工程|營造)/i.test(titleLower)) {
+      return INDUSTRY_DOMAINS.CIVIL_ARCHITECTURE;
+    }
+    if (/\b(software engineer|software developer|backend developer|frontend developer|full stack|devops|cloud engineer|systems engineer|site reliability|qa engineer|firmware|embedded software)\b|(?:軟體工程師|软件工程师|後端工程師|后端工程师|前端工程師|前端工程师|全端工程師|全栈工程师|程式設計師|軟體開發|系統架構師|架構師)/i.test(titleLower)) {
+      return INDUSTRY_DOMAINS.TECH_SOFTWARE;
+    }
+
+    // 2. Frequency scoring across full text
+    let highestScore = 0;
+    let selectedDomain = { code: 'GENERAL', label: 'General Professional' };
+
+    for (const domain of Object.values(INDUSTRY_DOMAINS)) {
+      const matches = textLower.match(domain.signature);
+      const score = matches ? matches.length : 0;
+      if (score > highestScore && score >= 2) {
+        highestScore = score;
+        selectedDomain = domain;
+      }
+    }
+
+    return selectedDomain;
+  }
+
+  /**
+   * Evaluate Job Match against Candidate Profile
+   * Strict requirement-driven gap analysis: Only report gaps that ACTUALLY appear in JD!
+   */
+  function evaluateJobMatch(jobData, cand) {
+    const isCardScan = Boolean(jobData?.isCardScan);
+    const isProvisional = Boolean(jobData?.isProvisionalPreview);
+    const hasBody = Boolean(jobData?.fullBodyText && jobData.fullBodyText.length >= 80) || (isCardScan && Boolean(jobData?.title)) || (isProvisional && Boolean(jobData?.title));
+    const isUnselected = !hasBody && (!jobData || !jobData.title || jobData.title.startsWith('Select a Job'));
+    const platformName = jobData?.platform || detectPlatform();
+    // Step 0: Normalize combinedText to separate glued words without breaking compound tech names (JavaScript, TypeScript, PostgreSQL, GraphQL)
+    const rawCombined = ((jobData?.title || '') + ' ' + (jobData?.company || '') + ' ' + (jobData?.fullBodyText || ''));
+    const safeCombined = rawCombined
+      .replace(/\bJavaScript\b/gi, '@@JAVASCRIPT@@')
+      .replace(/\bTypeScript\b/gi, '@@TYPESCRIPT@@')
+      .replace(/\bPostgreSQL\b/gi, '@@POSTGRESQL@@')
+      .replace(/\bGraphQL\b/gi, '@@GRAPHQL@@');
+    const combinedText = safeCombined
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([0-9])([a-zA-Z])/g, '$1 $2')
+      .replace(/@@JAVASCRIPT@@/gi, 'javascript')
+      .replace(/@@TYPESCRIPT@@/gi, 'typescript')
+      .replace(/@@POSTGRESQL@@/gi, 'postgresql')
+      .replace(/@@GRAPHQL@@/gi, 'graphql')
+      .toLowerCase();
+    const candSkills = cand.skills || [];
+
+    // Helper: Match skill keyword considering symbols like ++, #, . and plural variants (s/es)
+    function testSkillKey(pattern, text) {
+      const subkeys = pattern.split('|');
+      return subkeys.some(k => {
+        k = k.trim();
+        if (!k) return false;
+        try {
+          if (k.includes('(?') || k.includes('\\b')) {
+            const customRegex = new RegExp(k, 'i');
+            return customRegex.test(text);
+          } else if (k.includes('+') || k.includes('#') || k.startsWith('\\.') || k.startsWith('.')) {
+            const symRegex = new RegExp(`(?:^|[^a-z0-9_#])(${k})(?:$|[^a-z0-9_#])`, 'i');
+            return symRegex.test(text);
+          } else {
+            // Support plurals and variations like "system designs", "data models", "interfaces"
+            const wordRegex = new RegExp(`(?:^|[^a-z0-9_])(${k})(?:s|es)?(?:$|[^a-z0-9_])`, 'i');
+            return wordRegex.test(text);
+          }
+        } catch (e) {
+          return text.includes(k.replace(/\\/g, '').toLowerCase());
+        }
+      });
+    }
+
+    if (isUnselected) {
+      return {
+        overallMatchScore: 0,
+        matchTier: 'Awaiting Job Selection',
+        tierTitle: 'Ready to Scan',
+        tierDesc: `Click any job posting on ${platformName} to inspect full requirements & real-time skills fit`,
+        tierBadge: 'Ready to Scan',
+        tierColor: '#94a3b8',
+        tierLevel: 'ready',
+        matchHeadline: `👉 Click any job on ${platformName} to inspect full requirements & real-time skills fit`,
+        verifiedSkills: [],
+        missingSkillGaps: [],
+        detectedJdSkillsCount: 0,
+        isAwaitingJob: true,
+        detectedDomain: 'All Industries (Cross-Domain Ready)',
+        detectedDomainCode: 'COMMON'
+      };
+    }
+
+    if (!hasBody) {
+      return {
+        overallMatchScore: 0,
+        matchTier: 'Scanning Job Description',
+        tierTitle: 'Scanning Job Description',
+        tierDesc: 'Extracting the full job description before scoring — one moment.',
+        tierBadge: 'Scanning…',
+        tierColor: '#94a3b8',
+        tierLevel: 'scanning',
+        matchHeadline: '⏳ Extracting the full job description before scoring…',
+        verifiedSkills: [],
+        missingSkillGaps: [],
+        detectedJdSkillsCount: 0,
+        isAwaitingJob: false,
+        isScanning: true,
+        detectedDomain: 'Detecting Domain…',
+        detectedDomainCode: 'PENDING'
+      };
+    }
+
+    // Step 1: Industry Domain Classification & Cross-Industry Disambiguation
+    // Guarantees zero cross-domain pollution: GCP (Clinical Trials vs Cloud), CAD (Cardiology vs AutoCAD), Pipeline, etc.
+    const jobDomain = detectJobDomain(combinedText, jobData?.title || '');
+    const domainSpecificCatalog = COMPREHENSIVE_SKILL_CATALOG.filter(item => {
+      return item.domain === jobDomain.code || item.domain === 'COMMON';
+    });
+
+    // Step 1.1: Extract authentic in-situ requirements directly from the JD's bullets & clauses
+    const dynamicReqs = extractDynamicJdRequirements(combinedText, jobData?.fullBodyText, jobDomain);
+
+    let detectedJdSkills = [];
+
+    // Prioritize authentic dynamic requirements extracted from the employer's actual text
+    for (const dReq of dynamicReqs) {
+      detectedJdSkills.push(dReq);
+    }
+
+    // Supplement with catalog items that matched in text and aren't already represented
+    const matchedCatalogSkills = domainSpecificCatalog.filter(item => {
+      return testSkillKey(item.key, combinedText);
+    });
+
+    for (const catSkill of matchedCatalogSkills) {
+      const alreadyCovered = detectedJdSkills.some(d => {
+        const dLower = d.name.toLowerCase();
+        const catLower = catSkill.name.toLowerCase();
+        return dLower.includes(catLower) || catLower.includes(dLower) || testSkillKey(catSkill.key, d.name.toLowerCase());
+      });
+      if (!alreadyCovered && detectedJdSkills.length < 6) {
+        detectedJdSkills.push(catSkill);
+      }
+    }
+
+    // Baseline fallback if JD is extremely short: extract from Job Title itself (NEVER invent fake jargon)
+    if (detectedJdSkills.length === 0) {
+      const cleanTitle = (jobData?.title || 'Professional Role').trim();
+      detectedJdSkills = [
+        { name: cleanTitle, key: cleanTitle.toLowerCase() }
+      ];
+    }
+
+    // Step 2: Compare candidate skills against JD requirements using Universal Semantic Matcher
+    let verifiedSkills = [];
+    let missingSkillGaps = [];
+
+    detectedJdSkills.forEach(reqSkill => {
+      const hasSkill = candidateSatisfiesRequirement(reqSkill, cand);
+      if (hasSkill) {
+        verifiedSkills.push(reqSkill);
+      } else {
+        missingSkillGaps.push(reqSkill);
+      }
+    });
+
+    const totalDetected = detectedJdSkills.length;
+    let ratio = totalDetected > 0 ? (verifiedSkills.length / totalDetected) : 0;
+
+    // Step 3: Fair, Nuanced & Continuous Dynamic Scoring
+    let overallMatchScore;
+    if (totalDetected === 0) {
+      const isTechCand = (cand.skills || []).some(s => /software|engineer|developer|backend|frontend|fullstack|python|java|react|go|c\+\+/i.test(s));
+      const isTechRole = /software|engineer|developer|backend|frontend|full stack|architect|systems|reliability|web|cloud/i.test(jobData?.title || '');
+      if (isTechCand && isTechRole) {
+        overallMatchScore = 86;
+      } else {
+        overallMatchScore = 68;
+      }
+    } else if (missingSkillGaps.length === 0) {
+      // All detected core JD requirements are satisfied! Reward with top-tier 93-98% score
+      const depthBonus = Math.min(3, Math.floor((jobData?.characterCount || 0) / 2500));
+      const expBonus = (cand.yearsOfExperience >= 10) ? 3 : ((cand.yearsOfExperience >= 5) ? 2 : 1);
+      overallMatchScore = Math.min(98, 92 + expBonus + depthBonus);
+    } else {
+      // Gaps exist: natural, nuanced scoring with realistic distribution
+      // Example 5/6 matched (83.3%) -> base 82 + exp bonus (3-4) + char depth = 85% ~ 88%
+      // Example 4/6 matched (66.7%) -> base 68 + exp bonus (4) + char depth = 73% ~ 76%
+      // Example 3/6 matched (50.0%) -> base 50 + exp bonus (4) + char depth = 55% ~ 58%
+      const baseRatioScore = ratio * 78; // maps 0.833 -> 65
+      const expWeight = (cand.yearsOfExperience >= 10) ? 18 : ((cand.yearsOfExperience >= 5) ? 14 : 10);
+      const textDepthJitter = Math.min(3, Math.floor(((jobData?.characterCount || 0) % 1000) / 300));
+      const rawScore = Math.round(baseRatioScore + expWeight + textDepthJitter);
+      overallMatchScore = Math.max(38, Math.min(91, rawScore));
+    }
+
+    if (isBuggyMode) {
+      overallMatchScore = 98; // Simulated naive match from truncated 153 chars
+    }
+
+    // Tier definitions
+    let tierLevel = 'growth';
+    let tierTitle = 'Solid Transferable Foundation';
+    let tierDesc = 'Core transferable skills detected · Minor gap bridging recommended';
+    let tierBadge = 'Transferable (60-74%)';
+    let tierColor = '#fbbf24'; // Amber
+
+    if (overallMatchScore >= 90) {
+      tierLevel = 'exceptional';
+      tierTitle = 'Top 1% Exceptional Match';
+      tierDesc = 'Direct technical alignment · Outstanding qualifications · High interview probability';
+      tierBadge = 'Top Tier (90-100%)';
+      tierColor = '#34d399'; // Emerald
+    } else if (overallMatchScore >= 75) {
+      tierLevel = 'competitive';
+      tierTitle = 'Competitive Strong Match';
+      tierDesc = 'High core skill alignment · Meets primary job requirements · Highly recommended to apply';
+      tierBadge = 'Competitive (75-89%)';
+      tierColor = '#38bdf8'; // Sky blue
+    } else if (overallMatchScore >= 60) {
+      tierLevel = 'growth';
+      tierTitle = 'Solid Transferable Foundation';
+      tierDesc = 'Transferable skills present · Highlight relevant technical achievements';
+      tierBadge = 'Transferable (60-74%)';
+      tierColor = '#fbbf24'; // Amber
+    } else {
+      tierLevel = 'pivot';
+      tierTitle = 'Cross-Track Opportunity';
+      tierDesc = 'Cross-domain role · Emphasize core engineering foundations & rapid learning ability';
+      tierBadge = 'Cross-Track (<60%)';
+      tierColor = '#94a3b8'; // Slate
+    }
+
+    if (isProvisional && jobData?.provisionalScore > 0) {
+      overallMatchScore = Math.max(overallMatchScore, jobData.provisionalScore);
+    }
+
+    const candRole = cand.title || 'Applicant';
+    const candExp = cand.yearsOfExperience > 0 ? `${cand.yearsOfExperience} Yrs Exp` : 'Target Domain';
+    const matchTier = `${overallMatchScore}% ${tierTitle}`;
+    const matchHeadline = isBuggyMode
+      ? '⚠️ Naive 98% Match: Based solely on 153 chars truncated preview. Click mode toggle to scan full JD!'
+      : (isProvisional
+          ? `⚡ ${overallMatchScore}% Match (Card Preview) · Ingesting 5,000+ chars full body from ${platformName}…`
+          : `${overallMatchScore}% Match for ${candRole} (${candExp}) · ${tierDesc}`);
+
+    return {
+      overallMatchScore,
+      matchTier,
+      tierTitle: isProvisional ? `${overallMatchScore}% Fit (Preview)` : tierTitle,
+      tierDesc: isProvisional ? 'Card preview fit · Deep-fetching full job text from active pane…' : tierDesc,
+      tierBadge: isProvisional ? 'Fetching Details…' : tierBadge,
+      tierColor: overallMatchScore >= 80 ? '#34d399' : (overallMatchScore >= 60 ? '#fbbf24' : '#94a3b8'),
+      tierLevel,
+      matchHeadline,
+      verifiedSkills,
+      missingSkillGaps,
+      detectedJdSkillsCount: totalDetected,
+      isAwaitingJob: false,
+      isScanning: false,
+      isFetchingDeepBody: isProvisional,
+      detectedDomain: jobDomain.label,
+      detectedDomainCode: jobDomain.code
+    };
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /**
+   * Extract comprehensive skills from raw resume text
+   */
+  function extractSkillsFromResumeText(text) {
+    if (!text) return [];
+    
+    // Explicit definitions with custom matchers to eliminate common word false positives
+    const skillRules = [
+      { name: 'Java', regex: /\bJava\b(?!script)/i },
+      { name: 'Python', regex: /\bPython\b/i },
+      { name: 'Go', regex: /\b(Golang|Go\s*(?:\(Golang\)|developer|engineer|backend|programming|language))\b|\bGo\/(?:Python|Rust|Java|C\+\+)\b/i },
+      { name: 'Golang', regex: /\bGolang\b/i },
+      { name: 'JavaScript', regex: /\bJavaScript\b/i },
+      { name: 'TypeScript', regex: /\bTypeScript\b/i },
+      { name: 'C++', regex: /(?:^|[^a-zA-Z0-9_#])(C\+\+|modern\s+C\+\+|CPP)(?:$|[^a-zA-Z0-9_#])/i },
+      { name: 'C#', regex: /(?:^|[^a-zA-Z0-9_#])(C#|\.NET|DotNet)(?:$|[^a-zA-Z0-9_#])/i },
+      { name: 'Rust', regex: /\bRust\b/i },
+      { name: 'Ruby', regex: /\bRuby\b(?:\s+on\s+Rails|\s+Rails|\b)/i },
+      { name: 'PHP', regex: /\bPHP\b/i },
+      { name: 'SQL', regex: /\bSQL\b/i },
+      { name: 'MySQL', regex: /\bMySQL\b/i },
+      { name: 'PostgreSQL', regex: /\b(PostgreSQL|Postgres)\b/i },
+      { name: 'Oracle', regex: /\b(Oracle\s+DB|Oracle\s+Database|Oracle\s+ERP|Oracle\s+Cloud)\b/i },
+      { name: 'MongoDB', regex: /\bMongoDB\b/i },
+      { name: 'Redis', regex: /\bRedis\b/i },
+      { name: 'Elasticsearch', regex: /\bElasticsearch\b/i },
+      { name: 'Cassandra', regex: /\bCassandra\b/i },
+      { name: 'Spring Boot', regex: /\bSpring\s+Boot\b/i },
+      { name: 'Spring Cloud', regex: /\bSpring\s+Cloud\b/i },
+      { name: 'MyBatis', regex: /\bMyBatis\b/i },
+      { name: 'Django', regex: /\bDjango\b/i },
+      { name: 'Flask', regex: /\bFlask\b/i },
+      { name: 'FastAPI', regex: /\bFastAPI\b/i },
+      { name: 'Node.js', regex: /\b(Node\.js|NodeJS|Node\s+js)\b/i },
+      { name: 'Express', regex: /\b(Express\.js|ExpressJS)\b/i },
+      { name: 'React', regex: /\bReact(?:\.js|JS)?\b/i },
+      { name: 'Vue', regex: /\bVue(?:\.js|JS)?\b/i },
+      { name: 'Angular', regex: /\bAngular(?:\.js|JS)?\b/i },
+      { name: 'Next.js', regex: /\bNext\.js\b/i },
+      { name: 'Tailwind', regex: /\bTailwind(?:\s+CSS)?\b/i },
+      { name: 'GraphQL', regex: /\bGraphQL\b/i },
+      { name: 'REST API', regex: /\b(RESTful|REST\s+API|REST\s+APIs)\b/i },
+      { name: 'Docker', regex: /\bDocker\b/i },
+      { name: 'Kubernetes', regex: /\b(Kubernetes|K8s)\b/i },
+      { name: 'Jenkins', regex: /\bJenkins\b/i },
+      { name: 'CI/CD', regex: /\bCI\/CD\b/i },
+      { name: 'Git', regex: /\bGit\b(?!ted)/i },
+      { name: 'Linux', regex: /\bLinux\b/i },
+      { name: 'DevOps', regex: /\bDevOps\b/i },
+      { name: 'AWS', regex: /\bAWS\b|Amazon\s+Web\s+Services/i },
+      { name: 'AliCloud', regex: /\b(AliCloud|Alibaba\s+Cloud)\b/i },
+      { name: 'Azure', regex: /\b(Microsoft\s+Azure|Azure\s+Cloud|Azure)\b/i },
+      { name: 'Google Cloud', regex: /\b(Google\s+Cloud|GCP)\b/i },
+      { name: 'Microservices', regex: /\b(Microservices?|Micro-services?)\b/i },
+      { name: 'Distributed Systems', regex: /\bDistributed\s+Systems?\b/i },
+      { name: 'High Concurrency', regex: /\b(High\s+Concurrency|High\s+Throughput|Multithread(?:ing)?)\b/i },
+      { name: 'System Architecture', regex: /\b(System\s+Architecture|Software\s+Architecture)\b/i },
+      { name: 'System Design', regex: /\bSystem\s+Design\b/i },
+      { name: 'System Refactoring', regex: /\b(?:Code|System)\s+Refactoring\b/i },
+      { name: 'Unit Testing', regex: /\bUnit\s+Test(?:ing|s)?\b/i },
+      { name: 'Integration Testing', regex: /\bIntegration\s+Test(?:ing|s)?\b/i },
+      { name: 'Automated Testing', regex: /\bAutomated\s+Test(?:ing|s)?\b/i },
+      { name: 'Swagger', regex: /\bSwagger\b/i },
+      { name: 'Postman', regex: /\bPostman\b/i },
+      { name: 'Agile', regex: /\bAgile\b/i },
+      { name: 'Scrum', regex: /\bScrum\b/i },
+      { name: 'Jira', regex: /\bJira\b/i },
+      { name: 'Technical Leadership', regex: /\bTechnical\s+Leadership\b/i },
+      { name: 'Team Management', regex: /\b(Team\s+Management|Engineering\s+Management)\b/i },
+      { name: 'Financial Software', regex: /\bFinancial\s+Software\b/i },
+      { name: 'IoT Platform', regex: /\bIoT(?:\s+Platform)?\b/i },
+      { name: 'SaaS Platform', regex: /\bSaaS(?:\s+Platform)?\b/i },
+      { name: 'Data Analysis', regex: /\bData\s+Analysis\b/i },
+      { name: 'Financial Modeling', regex: /\bFinancial\s+Model(?:ing)?\b/i },
+      { name: 'DCF', regex: /\bDCF\b|Discounted\s+Cash\s+Flow/i },
+      { name: 'LBO', regex: /\bLBO\b|Leveraged\s+Buyout/i },
+      { name: 'Accounting', regex: /\bAccounting\b/i },
+      { name: 'GAAP', regex: /\b(?:US\s+)?GAAP\b/i },
+      { name: 'FP&A', regex: /\bFP&A\b|Financial\s+Planning\s+and\s+Analysis/i },
+      { name: 'Excel', regex: /(?:MS\s+|Microsoft\s+|Advanced\s+)?Excel(?:\s+VBA|\s+Modeling|\s+Formulas)?\b(?!\s+(?:in|at)\b)/i },
+      { name: 'VBA', regex: /\bVBA\b/i },
+      { name: 'Tableau', regex: /\bTableau\b/i },
+      { name: 'PowerBI', regex: /\bPower\s*BI\b/i },
+      { name: 'SAP', regex: /\bSAP(?:\s+ERP|\s+S\/4HANA)?\b/i },
+      { name: 'Argus', regex: /\bArgus\b/i },
+      { name: 'Yardi', regex: /\bYardi\b/i },
+      { name: 'Auditing', regex: /\b(Auditing|Internal\s+Audit|Financial\s+Audit)\b/i },
+      { name: 'Financial Analysis', regex: /\bFinancial\s+Analysis\b/i },
+      { name: 'M&A Advisory', regex: /\b(Mergers\s+(&|and)\s+Acquisitions|M&A\b|Due\s+Diligence)\b/i },
+      { name: 'Valuation Modeling', regex: /\b(Valuation\s+Model|DCF|LBO|Discounted\s+Cash\s+Flow)\b/i },
+      { name: 'Risk Management (AML/KYC)', regex: /\b(AML|Anti-Money\s+Laundering|KYC|Risk\s+Management)\b/i },
+
+      // --- Biotech & Pharma ---
+      { name: 'Good Clinical Practice (GCP)', regex: /\b(GCP|Good\s+Clinical\s+Practice|ICH-GCP)\b/i },
+      { name: 'Clinical Trials', regex: /\b(Clinical\s+Trial|Clinical\s+Study|Phase\s+I|Phase\s+II|Phase\s+III|CRO\b)/i },
+      { name: 'Cell Culture', regex: /\b(Cell\s+Culture|Tissue\s+Culture|Primary\s+Cells)\b/i },
+      { name: 'Molecular Assays (PCR/ELISA)', regex: /\b(PCR|qPCR|ELISA|Western\s+Blot|Flow\s+Cytometry)\b/i },
+      { name: 'Regulatory Affairs (FDA)', regex: /\b(FDA\b|IND\s+Application|NDA\s+Submission|Regulatory\s+Affairs)\b/i },
+      { name: 'GMP / GLP', regex: /\b(GMP|GLP|Cleanroom|IQ\/OQ\/PQ|Quality\s+Control\s+Pharma)\b/i },
+      { name: 'In-Vivo Models', regex: /\b(In-Vivo|In\s+Vivo|Animal\s+Model|Preclinical|Pharmacokinetics)\b/i },
+      { name: 'Biostatistics (SAS)', regex: /\b(SAS\b|Biostatistics|Clinical\s+Data\s+Analysis)\b/i },
+
+      // --- Healthcare & Medicine ---
+      { name: 'Patient Care', regex: /\b(Patient\s+Care|Inpatient|Outpatient|Clinical\s+Workflow)\b/i },
+      { name: 'Clinical Diagnosis', regex: /\b(Clinical\s+Diagnosis|Diagnostic\s+Protocol|Patient\s+Triage)\b/i },
+      { name: 'Cardiology', regex: /\b(Cardiology|Coronary|Cardiovascular|ECG|EKG)\b/i },
+      { name: 'Electronic Health Records (EHR)', regex: /\b(Epic\b|Cerner\b|Electronic\s+Health\s+Record|EHR|EMR)\b/i },
+      { name: 'HIPAA Compliance', regex: /\b(HIPAA|Protected\s+Health\s+Information|PHI\b)\b/i },
+
+      // --- Civil & Architecture ---
+      { name: 'AutoCAD', regex: /\b(AutoCAD|CAD\s+Drafting|DWG\b|Microstation)\b/i },
+      { name: 'Revit / BIM', regex: /\b(Revit|Building\s+Information\s+Modeling|\bBIM\b|Navisworks)\b/i },
+      { name: 'Structural Engineering', regex: /\b(Structural\s+Engineering|Structural\s+Framing|Steel\s+Framework|ETABS|SAP2000)\b/i },
+      { name: 'MEP Systems', regex: /\b(MEP\b|HVAC\s+Design|Plumbing\s+Engineering|Piping\s+Design)\b/i },
+      { name: 'Construction Management', regex: /\b(Construction\s+Management|Site\s+Superintendent|OSHA\s+30|OSHA\s+10)\b/i },
+      { name: 'Building Codes (IBC)', regex: /\b(Building\s+Code|IBC\b|Permitting|Plan\s+Check)\b/i }
+    ];
+
+    const found = [];
+    skillRules.forEach(rule => {
+      try {
+        if (rule.regex.test(text)) {
+          found.push(rule.name);
+        }
+      } catch (e) {
+        // Safe fallback
+      }
+    });
+
+    return Array.from(new Set(found));
+  }
+
+  /**
+   * Ensure Isolated Shadow DOM Host
+   */
+  function getOrCreateShadowRoot() {
+    if (shadowRoot && hostContainer && hostContainer.parentElement === document.body) {
+      return shadowRoot;
+    }
+
+    if (!document.body) return null;
+
+    hostContainer = document.getElementById('sjg-shadow-host-root');
+    if (!hostContainer) {
+      hostContainer = document.createElement('div');
+      hostContainer.id = 'sjg-shadow-host-root';
+      hostContainer.style.position = 'fixed';
+      hostContainer.style.zIndex = '2147483647';
+      hostContainer.style.inset = '0';
+      hostContainer.style.pointerEvents = 'none';
+      hostContainer.style.display = 'block';
+      document.body.appendChild(hostContainer);
+    } else if (hostContainer.parentElement !== document.body) {
+      document.body.appendChild(hostContainer);
+    }
+
+    shadowRoot = hostContainer.shadowRoot || hostContainer.attachShadow({ mode: 'open' });
+    return shadowRoot;
+  }
+
+  const SHADOW_CSS = `
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    .sjg-floating-pill {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      background: #090d16;
+      border: 1.5px solid rgba(99, 102, 241, 0.6);
+      border-radius: 9999px;
+      box-shadow: 0 12px 35px -5px rgba(0, 0, 0, 0.8), 0 0 25px rgba(99, 102, 241, 0.4);
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+      pointer-events: auto;
+    }
+
+    .sjg-floating-pill:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 16px 40px -5px rgba(0, 0, 0, 0.9), 0 0 30px rgba(99, 102, 241, 0.6);
+      border-color: rgba(129, 140, 248, 1);
+    }
+
+    .sjg-pill-dot {
+      width: 10px;
+      height: 10px;
+      background-color: #06b6d4;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #06b6d4;
+    }
+
+    .sjg-pill-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.25;
+      text-align: left;
+    }
+
+    .sjg-pill-brand {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sjg-pill-chars {
+      font-size: 11px;
+      color: #34d399;
+      font-weight: 600;
+    }
+
+    .sjg-pill-badge {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .sjg-floating-pill.hidden {
+      display: none !important;
+    }
+
+    .sjg-hud-panel {
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      z-index: 2147483647;
+      width: 400px;
+      max-height: calc(100vh - 32px);
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.95), 0 0 35px rgba(59, 130, 246, 0.25);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #f1f5f9;
+      pointer-events: auto;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .sjg-hud-panel.open {
+      display: flex !important;
+    }
+
+    .sjg-fireworks-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    @keyframes sjgSlideUp {
+      0% { transform: translateY(20px) scale(0.97); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    @keyframes sjgRingFill {
+      from { stroke-dashoffset: 138; }
+      to { stroke-dashoffset: var(--sjg-ring-target, 138); }
+    }
+
+    @keyframes sjgNumFadeIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .sjg-header {
+      padding: 14px 16px;
+      background: #0d1322;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sjg-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sjg-cyan-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #06b6d4;
+      box-shadow: 0 0 10px #06b6d4;
+    }
+
+    .sjg-title {
+      font-weight: 900;
+      font-size: 13px;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+    }
+
+    .sjg-pro-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .sjg-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sjg-btn-rescan {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-rescan:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+
+    .sjg-btn-close {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-close:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .sjg-mode-bar {
+      padding: 8px 16px;
+      background: #090e1a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .sjg-mode-label {
+      color: #94a3b8;
+    }
+
+    .sjg-mode-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(6, 78, 59, 0.4);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      cursor: pointer;
+    }
+
+    .sjg-body {
+      padding: 10px 14px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sjg-card {
+      background: #0d1424;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 8px 11px;
+    }
+
+    .sjg-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .sjg-red-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ef4444;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .sjg-chars-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(6, 78, 59, 0.35);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .sjg-job-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.25;
+    }
+
+    .sjg-job-sub {
+      font-size: 10.5px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .sjg-job-company {
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .sjg-candidate-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    .sjg-btn-upload {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid #6366f1;
+      color: #a5b4fc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-upload:hover {
+      background: #4f46e5;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+
+    .sjg-btn-link {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-link:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .sjg-btn-link.expand {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    .sjg-cand-skills-text {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    .sjg-cand-skills-label {
+      color: #94a3b8;
+    }
+
+    .sjg-cand-expand-box {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #1e293b;
+      font-size: 11px;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sjg-match-card {
+      background: #0d1428;
+      border: 1.5px solid rgba(59, 130, 246, 0.4);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sjg-match-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sjg-match-tier {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .sjg-match-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+
+    .sjg-match-inner {
+      background: #090e1a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .sjg-ring-box {
+      width: 54px;
+      height: 54px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sjg-ring-svg {
+      width: 54px;
+      height: 54px;
+      transform: rotate(-90deg);
+    }
+
+    .sjg-ring-text {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .sjg-ring-num {
+      font-size: 12px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .sjg-match-inner-text {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .sjg-match-inner-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .sjg-match-inner-stats {
+      font-size: 10px;
+      font-family: ui-monospace, monospace;
+      color: #94a3b8;
+    }
+
+    .sjg-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    .sjg-verified-label {
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sjg-gaps-label {
+      color: #f59e0b;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sjg-total-count {
+      color: #94a3b8;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .sjg-chips-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .sjg-chip {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+
+    .sjg-chip.verified {
+      background: rgba(6, 78, 59, 0.4);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .sjg-chip.gap {
+      background: rgba(136, 19, 55, 0.4);
+      color: #f43f5e;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+
+    .sjg-btn-executive {
+      width: 100%;
+      background: linear-gradient(135deg, #d97706, #ea580c);
+      color: #ffffff;
+      border: none;
+      border-radius: 9px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 15px rgba(234, 88, 12, 0.35);
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-executive:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .sjg-btn-pivot {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.4) 0%, rgba(124, 58, 237, 0.5) 50%, rgba(14, 165, 233, 0.4) 100%);
+      color: #ffffff;
+      border: 1.5px solid #818cf8;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      box-shadow: 0 0 18px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-top: 10px;
+      margin-bottom: 8px;
+    }
+
+    .sjg-btn-pivot:hover {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.65) 0%, rgba(139, 92, 246, 0.75) 50%, rgba(14, 165, 233, 0.6) 100%);
+      border-color: #38bdf8;
+      box-shadow: 0 0 26px rgba(56, 189, 248, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      transform: translateY(-1.5px);
+    }
+
+    .sjg-buttons-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .sjg-btn-letter {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      padding: 7px;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-letter:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+
+    .sjg-btn-faang {
+      background: #3b0764;
+      color: #f3e8ff;
+      border: 1px solid #7e22ce;
+      border-radius: 7px;
+      padding: 7px;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .sjg-btn-faang:hover {
+      background: #581c87;
+      color: #ffffff;
+    }
+
+    .sjg-edit-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(9, 13, 22, 0.98);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 10;
+      overflow-y: auto;
+    }
+
+    .sjg-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sjg-input-group label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    .sjg-input-group input, .sjg-input-group textarea {
+      background: #0d1424;
+      border: 1px solid #334155;
+      color: #ffffff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+      font-family: inherit;
+    }
+
+    .sjg-input-group textarea {
+      resize: vertical;
+      min-height: 140px;
+      white-space: pre-wrap;
+    }
+
+    .sjg-edit-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    /* Autonomous Scout Bot Console Styles */
+    .sjg-pill-bot-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(52, 211, 153, 0.5);
+      border-radius: 4px;
+      padding: 1px 5px;
+      letter-spacing: 0.5px;
+    }
+
+    .sjg-bot-deck {
+      background: linear-gradient(135deg, #0b132b 0%, #151d3b 100%);
+      border: 1.5px solid rgba(56, 189, 248, 0.45);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sjg-bot-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sjg-bot-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sjg-bot-radar-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      display: inline-block;
+      animation: sjgRadarPulse 1.8s infinite;
+    }
+
+    @keyframes sjgRadarPulse {
+      0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .sjg-bot-status-tag {
+      font-size: 8.5px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.4);
+    }
+
+    .sjg-bot-switch-wrap {
+      display: flex;
+      align-items: center;
+    }
+
+    .sjg-switch-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sjg-switch-label input {
+      display: none;
+    }
+
+    .sjg-switch-slider {
+      position: relative;
+      width: 26px;
+      height: 14px;
+      background: #334155;
+      border-radius: 999px;
+      transition: all 0.2s;
+      display: inline-block;
+    }
+
+    .sjg-switch-slider::before {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 10px;
+      height: 10px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .sjg-switch-label input:checked + .sjg-switch-slider {
+      background: #0284c7;
+    }
+
+    .sjg-switch-label input:checked + .sjg-switch-slider::before {
+      transform: translateX(12px);
+    }
+
+    .sjg-bot-stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin: 4px 0;
+      padding: 6px 8px;
+      background: rgba(7, 11, 20, 0.7);
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+
+    .sjg-bot-stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .sjg-bot-stat-val {
+      font-size: 13px;
+      font-weight: 900;
+      font-family: ui-monospace, monospace;
+      color: #ffffff;
+    }
+
+    .sjg-bot-stat-lbl {
+      font-size: 9px;
+      color: #94a3b8;
+      margin-top: 1px;
+    }
+
+    .sjg-bot-actions-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .sjg-bot-btn-scan {
+      flex: 1;
+      background: linear-gradient(135deg, #0284c7, #4f46e5);
+      color: #ffffff;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 2px 10px rgba(2, 132, 199, 0.35);
+      transition: all 0.2s;
+    }
+
+    .sjg-bot-btn-scan:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .sjg-bot-btn-alert {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .sjg-bot-btn-alert:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+
+    .sjg-bot-btn-pause {
+      flex: 1.1;
+      background: linear-gradient(135deg, #b91c1c, #991b1b);
+      color: #ffffff;
+      border: 1px solid rgba(239, 68, 68, 0.6);
+      border-radius: 7px;
+      padding: 7px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 2px 10px rgba(239, 68, 68, 0.35);
+      transition: all 0.2s;
+    }
+
+    .sjg-bot-btn-pause:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .sjg-bot-btn-resume {
+      flex: 1.1;
+      background: linear-gradient(135deg, #059669, #047857);
+      color: #ffffff;
+      border: 1px solid rgba(52, 211, 153, 0.6);
+      border-radius: 7px;
+      padding: 7px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 2px 10px rgba(5, 150, 105, 0.35);
+      transition: all 0.2s;
+    }
+
+    .sjg-bot-btn-resume:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .sjg-bot-export-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .sjg-bot-btn-export {
+      flex: 1;
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.95));
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 7px;
+      padding: 6px 8px;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .sjg-bot-btn-export:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .sjg-switch-slider.focus-active {
+      background: #059669 !important;
+    }
+
+    .sjg-freshness-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    .sjg-freshness-pill.active {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .sjg-freshness-pill.stale {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .sjg-freshness-pill.expired {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .sjg-expired-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 5px 8px;
+      border-radius: 6px;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+  `;
+
+  /**
+   * Export all scanned leads in session to clean CSV with UTF-8 BOM
+   */
+  function exportScannedLeadsToCSV() {
+    // 1. Force a synchronous scan to capture all visible cards on page
+    try {
+      runAutoPageScan(true);
+    } catch (e) {}
+
+    // 2. Guarantee that currently active job is in registry if valid
+    const currentJob = cachedJobData || extractFullIndeedJob();
+    if (currentJob && currentJob.title && !currentJob.title.startsWith('Select a Job')) {
+      const activeEval = evaluateJobMatch(currentJob, candidateProfile);
+      const leadKey = currentJob.jk ? `jk_${currentJob.jk}` : `${currentJob.title}::${currentJob.company}`;
+      scannedLeadsRegistry.set(leadKey, {
+        key: leadKey,
+        title: currentJob.title,
+        company: currentJob.company || 'Target Employer',
+        location: currentJob.location || 'On-site / Hybrid',
+        score: activeEval.overallMatchScore,
+        jk: currentJob.jk || '',
+        url: window.location.href,
+        snippet: (currentJob.fullBodyText || '').slice(0, 300),
+        isExpired: Boolean(currentJob.freshness?.isExpired),
+        isStale: Boolean(currentJob.freshness?.isStale),
+        verifiedSkills: activeEval.verifiedSkills || [],
+        scannedAt: Date.now()
+      });
+    }
+
+    if (scannedLeadsRegistry.size === 0) {
+      alert('No job leads detected on current page yet. Please click or select any job posting first.');
+      return;
+    }
+
+    const leads = Array.from(scannedLeadsRegistry.values()).filter(l => {
+      if (!l.title || isSearchHeader(l.title)) return false;
+      const lower = l.title.toLowerCase();
+      if (lower.startsWith('who we are') || lower.startsWith('about ') || lower.startsWith('the role') || lower.startsWith('your skills') || lower.startsWith('w2 only')) {
+        return false;
+      }
+      return true;
+    });
+    leads.sort((a, b) => b.score - a.score);
+
+    const headers = [
+      'Job Title',
+      'Company',
+      'Location',
+      'Match',
+      'Key Skills',
+      'Apply Link'
+    ];
+
+    const escapeCsv = (str) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const cleanSkillTag = (skill) => {
+      const raw = typeof skill === 'string' ? skill : (skill.name || skill.skill || '');
+      const clean = raw.replace(/^[-•*]\s*/, '').trim();
+      return clean.length > 20 ? clean.slice(0, 20) + '…' : clean;
+    };
+
+    const cleanJobUrl = (rawUrl, jk) => {
+      if (!rawUrl && !jk) return '';
+      if (jk && (detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com'))) {
+        return `https://www.linkedin.com/jobs/view/${jk}/`;
+      }
+      try {
+        const u = new URL(rawUrl);
+        if (u.hostname.includes('linkedin.com')) {
+          const m = u.pathname.match(/\/jobs\/view\/(\d+)/);
+          if (m) return `https://www.linkedin.com/jobs/view/${m[1]}/`;
+        }
+        return `${u.origin}${u.pathname}`;
+      } catch (e) {
+        return rawUrl ? rawUrl.split('?')[0] : '';
+      }
+    };
+
+    const rows = leads.map(l => {
+      const tierShort = l.score >= 90 ? 'Top 1%' : (l.score >= 75 ? 'Strong' : (l.score >= 60 ? 'Fit' : 'Cross'));
+      const skillsShort = (l.verifiedSkills || [])
+        .slice(0, 4)
+        .map(cleanSkillTag)
+        .filter(Boolean)
+        .join(', ');
+      const cleanUrl = cleanJobUrl(l.url, l.jk);
+      const locClean = l.location ? l.location.replace(/[\n\r]+/g, ' ').split('•')[0].trim() : 'On-site / Hybrid';
+      const cleanTitle = cleanJobTitle(l.title) || l.title || 'Job Opening';
+      let cleanComp = cleanCompanyName(l.company) || 'Target Employer';
+
+      return [
+        escapeCsv(cleanTitle),
+        escapeCsv(cleanComp),
+        escapeCsv(locClean),
+        escapeCsv(`${l.score}% (${tierShort})`),
+        escapeCsv(skillsShort || 'Core Stack'),
+        escapeCsv(cleanUrl)
+      ];
+    });
+
+    const csvContent = '\uFEFF' + [
+      headers.map(h => `"${h}"`).join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const platformClean = detectPlatform().replace(/[^a-zA-Z0-9]/g, '_');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `SuperJobGenie_Leads_${platformClean}_${dateStr}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Copy scanned leads as Markdown Table for Notion/Obsidian
+   */
+  function copyScannedLeadsAsMarkdown() {
+    if (scannedLeadsRegistry.size === 0) {
+      runAutoPageScan(true);
+    }
+    if (scannedLeadsRegistry.size === 0) {
+      return;
+    }
+
+    const leads = Array.from(scannedLeadsRegistry.values()).filter(l => {
+      if (!l.title || isSearchHeader(l.title)) return false;
+      const lower = l.title.toLowerCase();
+      if (lower.startsWith('who we are') || lower.startsWith('about ') || lower.startsWith('the role') || lower.startsWith('your skills') || lower.startsWith('w2 only')) {
+        return false;
+      }
+      return true;
+    });
+    leads.sort((a, b) => b.score - a.score);
+
+    let md = `### SuperJobGenie Scout Leads (${leads.length} Jobs - ${detectPlatform()})\n\n`;
+    md += `| # | Score | Job Title | Company | Freshness | Key Skills | Link |\n`;
+    md += `|---|---|---|---|---|---|---|\n`;
+
+    leads.forEach((l, idx) => {
+      const skillsStr = (l.verifiedSkills || []).slice(0, 4).map(s => s.name || s).join(', ');
+      const cleanTitle = (cleanJobTitle(l.title) || l.title || 'Job').replace(/\|/g, '-');
+      let cleanComp = cleanCompanyName(l.company) || 'Target Employer';
+      cleanComp = cleanComp.replace(/\|/g, '-');
+      const freshStr = l.isExpired ? 'Closed' : (l.isStale ? '30+d' : 'Active');
+      const linkStr = l.url ? `[Link](${l.url})` : 'Here';
+      md += `| ${idx + 1} | **${l.score}%** | ${cleanTitle} | ${cleanComp} | ${freshStr} | ${skillsStr} | ${linkStr} |\n`;
+    });
+
+    navigator.clipboard.writeText(md);
+  }
+
+  /**
+   * Render or Update HUD UI inside Shadow DOM
+   */
+  function renderShadowUI() {
+    try {
+      const sRoot = getOrCreateShadowRoot();
+      if (!sRoot) {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => renderShadowUI(), { once: true });
+        } else {
+          setTimeout(renderShadowUI, 100);
+        }
+        return;
+      }
+
+      const job = cachedJobData || {
+        title: 'Select a Job on Indeed',
+        company: 'Click any job posting to evaluate',
+        location: 'Los Angeles, CA • On-site / Hybrid',
+        salary: '',
+        fullBodyText: '',
+        characterCount: 0,
+        wordCount: 0,
+        platform: detectPlatform(),
+        extractionSource: 'Awaiting Selection',
+        isSchemaOrg: false,
+        hasRealBody: false,
+        jk: ''
+      };
+
+      const evaluation = evaluateJobMatch(job, candidateProfile);
+      const displayChars = isBuggyMode ? 153 : (job.characterCount || 0);
+
+      // Auto-save active evaluated job into scannedLeadsRegistry so it is always exportable to CSV
+      if (job && job.title && !isSearchHeader(job.title) && !job.title.startsWith('Select a Job') && evaluation.overallMatchScore > 0) {
+        const cleanT = cleanJobTitle(job.title);
+        let cleanC = cleanCompanyName(job.company) || (lastClickedCard?.company ? cleanCompanyName(lastClickedCard.company) : '') || 'Target Employer';
+        const leadKey = job.jk ? `jk_${job.jk}` : `${cleanT}::${cleanC}`;
+        
+        let finalUrl = window.location.href;
+        if ((detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com')) && job.jk) {
+          finalUrl = `https://www.linkedin.com/jobs/view/${job.jk}/`;
+        }
+
+        scannedLeadsRegistry.set(leadKey, {
+          key: leadKey,
+          title: cleanT,
+          company: cleanC,
+          location: job.location || 'On-site / Hybrid',
+          score: evaluation.overallMatchScore,
+          jk: job.jk || '',
+          url: finalUrl,
+          snippet: (job.fullBodyText || '').slice(0, 300),
+          isExpired: Boolean(job.freshness?.isExpired),
+          isStale: Boolean(job.freshness?.isStale),
+          verifiedSkills: evaluation.verifiedSkills || [],
+          scannedAt: Date.now()
+        });
+        scannedCardsCount = Math.max(scannedCardsCount, scannedLeadsRegistry.size);
+      }
+
+      let wrapper = sRoot.querySelector('#sjg-shadow-wrapper');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'sjg-shadow-wrapper';
+        sRoot.innerHTML = `<style>${SHADOW_CSS}</style>`;
+        sRoot.appendChild(wrapper);
+      }
+
+      const strokeDashoffset = Math.round(138 - (138 * evaluation.overallMatchScore) / 100);
+
+      // Preserve scroll position to eliminate jitter on re-render
+      const oldBody = wrapper.querySelector('.sjg-body');
+      const savedScrollTop = oldBody ? oldBody.scrollTop : 0;
+
+      wrapper.innerHTML = `
+        <!-- Hidden file input for resume uploading (Supports up to 100,000 chars) -->
+        <input type="file" id="sjg-resume-file-input" accept=".txt,.json,.md,.pdf,.docx" style="display:none;" />
+
+        <!-- Floating Quick Pill Trigger in Bottom-Right (Hidden when HUD is open) -->
+        <div id="sjg-pill-trigger" class="sjg-floating-pill ${isModalOpen ? 'hidden' : ''}" title="Click to open/close SuperJobGenie HUD">
+          <div class="sjg-pill-dot"></div>
+          <div class="sjg-pill-text">
+            <span class="sjg-pill-brand">
+              SuperJobGenie 🚀
+              <span class="sjg-pill-bot-badge"><span class="sjg-bot-radar-dot" style="${isAutoPilotEnabled ? '' : 'background:#94a3b8; box-shadow:none; animation:none;'}"></span>BOT: ${isAutoPilotEnabled ? 'ACTIVE' : 'PAUSED'}</span>
+            </span>
+            <span class="sjg-pill-chars">${displayChars.toLocaleString()} chars</span>
+          </div>
+          <div class="sjg-pill-badge">${evaluation.isScanning ? '···' : `${evaluation.overallMatchScore}%`}</div>
+        </div>
+
+        <!-- Bottom-Right Floating Panel -->
+        <div id="sjg-hud-panel" class="sjg-hud-panel ${isModalOpen ? 'open' : ''}">
+          <canvas id="sjg-fireworks-canvas" class="sjg-fireworks-canvas" width="420" height="600"></canvas>
+          
+          <!-- Top Header -->
+          <div class="sjg-header">
+            <div class="sjg-header-left">
+              <span class="sjg-cyan-dot"></span>
+              <span class="sjg-title">SUPERJOBGENIE HUD</span>
+              <span class="sjg-pro-badge">👑 PRO (3/3)</span>
+            </div>
+            <div class="sjg-header-actions">
+              <button id="sjg-rescan-btn" class="sjg-btn-rescan">
+                🔄 Rescan
+              </button>
+              <button id="sjg-close-btn" class="sjg-btn-close" title="Close (ESC)">✕</button>
+            </div>
+          </div>
+
+          <!-- Mode Banner -->
+          <div class="sjg-mode-bar">
+            <span class="sjg-mode-label">Career Pivot Intelligence:</span>
+            <div id="sjg-toggle-buggy-btn" class="sjg-mode-badge" title="Click to toggle between 153 chars truncated vs full-body chars">
+              ${isBuggyMode 
+                ? '⚠️ Truncated: 153 Chars (Naive)' 
+                : (job.isProvisionalPreview 
+                    ? `⏳ Ingesting Full Body from ${escapeHtml(job.platform)}…`
+                    : (job.characterCount >= 200 
+                        ? `🛡️ Full Body: ${job.characterCount.toLocaleString()} Chars Verified` 
+                        : (job.characterCount > 0 
+                            ? `⏳ Parsing: ${job.characterCount} Chars` 
+                            : (job.title && job.title !== 'Select a Job on Indeed'
+                                ? `🛡️ Selected: ${escapeHtml(job.company || job.title)}`
+                                : '🔍 Select a Job to Verify Full Body'))))}
+            </div>
+          </div>
+
+          <!-- Main Scrollable Body -->
+          <div class="sjg-body">
+
+            <!-- 🤖 V2.0 Autonomous Scout Bot Console Deck -->
+            <div class="sjg-bot-deck">
+              <div class="sjg-bot-header">
+                <div class="sjg-bot-badge">
+                  <span class="sjg-bot-radar-dot" style="${isAutoPilotEnabled ? '' : 'background:#94a3b8; box-shadow:none; animation:none;'}"></span>
+                  <span style="font-weight:900; font-size:11.5px; color:#ffffff; letter-spacing:0.3px;">🤖 AUTONOMOUS SCOUT BOT</span>
+                  <span class="sjg-bot-status-tag" id="sjg-bot-active-tag" style="color:${isAutoPilotEnabled ? '#34d399' : '#94a3b8'}; border-color:${isAutoPilotEnabled ? 'rgba(52,211,153,0.4)' : 'rgba(148,163,184,0.4)'};">${isAutoPilotEnabled ? 'ACTIVE' : 'STANDBY (PAUSED)'}</span>
+                </div>
+                <div class="sjg-bot-switch-wrap">
+                  <label class="sjg-switch-label" title="Auto-scan and badge job match scores as you browse or scroll">
+                    <input type="checkbox" id="sjg-bot-autopilot-toggle" ${isAutoPilotEnabled ? 'checked' : ''} />
+                    <span class="sjg-switch-slider"></span>
+                    <span style="font-size:10px; color:${isAutoPilotEnabled ? '#93c5fd' : '#94a3b8'}; font-weight:700;">Auto Cruise</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="sjg-bot-stats-row">
+                <div class="sjg-bot-stat-item">
+                  <span class="sjg-bot-stat-val" id="sjg-scanned-count">${scannedCardsCount || '0'}</span>
+                  <span class="sjg-bot-stat-lbl">Jobs Scanned</span>
+                </div>
+                <div class="sjg-bot-stat-item">
+                  <span class="sjg-bot-stat-val" style="color:#34d399;" id="sjg-high-match-count">${highMatchCount || '0'}</span>
+                  <span class="sjg-bot-stat-lbl">High Match (≥80%)</span>
+                </div>
+                <div class="sjg-bot-stat-item">
+                  <span class="sjg-bot-stat-val" style="color:${isAutoPilotEnabled ? '#38bdf8' : '#94a3b8'};">${isAutoPilotEnabled ? '24/7' : 'PAUSED'}</span>
+                  <span class="sjg-bot-stat-lbl">Radar State</span>
+                </div>
+              </div>
+
+              <div class="sjg-bot-actions-row">
+                <button id="sjg-bot-toggle-btn" class="${isAutoPilotEnabled ? 'sjg-bot-btn-pause' : 'sjg-bot-btn-resume'}" title="${isAutoPilotEnabled ? 'Click to stop and pause Scout Bot background cruising' : 'Click to resume autonomous scout bot cruising'}">
+                  <span>${isAutoPilotEnabled ? '⏸️ Stop / Pause Bot' : '▶️ Resume Auto Cruise'}</span>
+                </button>
+                <button id="sjg-bot-scan-page-btn" class="sjg-bot-btn-scan" title="Scan and evaluate all visible page jobs now">
+                  <span>⚡ Scan Page Jobs</span>
+                </button>
+                <button id="sjg-bot-test-alert-btn" class="sjg-bot-btn-alert" title="Test real-time desktop radar alert notification">
+                  <span>🔔 Alert</span>
+                </button>
+              </div>
+
+              <div class="sjg-bot-export-row">
+                <button id="sjg-bot-export-csv-btn" class="sjg-bot-btn-export" title="Export all scanned job leads to clean CSV (Excel/Sheets ready)">
+                  <span>📥 Export CSV (${scannedLeadsRegistry.size || scannedCardsCount || 0})</span>
+                </button>
+                <button id="sjg-bot-copy-md-btn" class="sjg-bot-btn-export" style="background:#1e293b; border-color:#334155; color:#cbd5e1; flex:0.75;" title="Copy scanned jobs as Markdown table for Notion/Obsidian">
+                  <span>📋 Copy Table (MD)</span>
+                </button>
+                <button id="sjg-bot-clear-leads-btn" class="sjg-bot-btn-export" style="background:#1e293b; border-color:#334155; color:#94a3b8; flex:0.45;" title="Clear scanned leads list for a new search">
+                  <span>🗑️ Clear</span>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Live Job Target Card -->
+            <div class="sjg-card">
+              <div class="sjg-card-header">
+                <span style="font-size: 11px; font-weight: 600; color: #94a3b8; display: flex; align-items: center;">
+                  <span class="sjg-red-dot"></span>
+                  Live Job Target (${escapeHtml(job.platform)}):
+                </span>
+                <span class="sjg-chars-badge">
+                  ⚡ ${displayChars > 0 
+                      ? `Captured ${displayChars.toLocaleString()} chars body` 
+                      : (job.isProvisionalPreview
+                          ? `Preview (${job.provisionalScore || 90}%) · Ingesting Full Body…`
+                          : (job.title && job.title !== 'Select a Job on Indeed' 
+                              ? `Target Active (${escapeHtml(job.company || 'Selected')})` 
+                              : 'Waiting for job click'))}
+                </span>
+              </div>
+              <div class="sjg-job-title">${escapeHtml(job.title)}</div>
+              <div class="sjg-job-sub">
+                <span class="sjg-job-company">🏢 ${escapeHtml(job.company)}</span> • 
+                <span>${escapeHtml(job.location)}</span>
+              </div>
+              <div style="margin-top: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                  🌐 ${escapeHtml(evaluation.detectedDomain || 'Cross-Domain Ready')}
+                </span>
+                <span class="sjg-freshness-pill ${job.freshness?.statusClass || 'active'}">
+                  ${escapeHtml(job.freshness?.label || '🟢 Active Posting')}
+                </span>
+              </div>
+              ${job.freshness?.isExpired ? `
+                <div class="sjg-expired-banner">
+                  ⚠️ This position is no longer accepting applications on ${escapeHtml(job.platform)}.
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Candidate Profile Card -->
+            <div class="sjg-card">
+              <div class="sjg-card-header">
+                <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 5px;">
+                  📄 Candidate Profile
+                </span>
+                <div class="sjg-candidate-actions">
+                  <button id="sjg-upload-resume-btn" class="sjg-btn-upload" title="Upload Resume (.pdf, .docx, .txt, .json)">
+                    📤 Upload Resume
+                  </button>
+                  <button id="sjg-quick-save-btn" class="sjg-btn-upload" style="background:#059669; border-color:#10b981;" title="Save profile">
+                    💾 Save
+                  </button>
+                  <button id="sjg-clear-btn" class="sjg-btn-link" title="Clear Profile">🗑️ Clear</button>
+                  <button id="sjg-edit-btn" class="sjg-btn-link" title="Edit Profile">✏️ Edit</button>
+                  <button id="sjg-expand-btn" class="sjg-btn-link expand">
+                    ${isCandidateExpanded ? 'Collapse ∧' : 'Expand ∨'}
+                  </button>
+                </div>
+              </div>
+              <div class="sjg-cand-skills-text">
+                <span class="sjg-cand-skills-label">Identified Skills (${candidateProfile.skills.length}): </span>
+                ${candidateProfile.skills.length > 0 ? escapeHtml(candidateProfile.skills.join(', ')) : '<span style="color:#64748b;">No skills specified yet (Upload or Edit)</span>'}
+              </div>
+
+              ${isCandidateExpanded ? `
+                <div class="sjg-cand-expand-box">
+                  <div><strong style="color:#fff;">Role:</strong> ${escapeHtml(candidateProfile.title)}</div>
+                  <div><strong style="color:#fff;">Experience:</strong> ${candidateProfile.yearsOfExperience} Years Relevant Domain</div>
+                  <div style="font-size:11px; color:#94a3b8; line-height:1.5; max-height:180px; overflow-y:auto; white-space:pre-wrap; background:rgba(0,0,0,0.3); padding:8px; border-radius:6px;">${escapeHtml(candidateProfile.rawResumeText || 'No raw resume content uploaded yet.')}</div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Match Card -->
+            <div class="sjg-match-card" style="border-color: ${evaluation.tierColor}66;">
+              <div class="sjg-match-header" style="margin-bottom: 6px;">
+                <div class="sjg-match-tier">
+                  <span style="color: ${evaluation.tierColor}; font-size:16px;">${evaluation.isAwaitingJob ? '🔍' : (evaluation.isScanning ? '⏳' : '✅')}</span>
+                  <span style="color: #ffffff; font-weight:800; font-size: 14px;">${evaluation.isAwaitingJob ? 'Ready for Job Selection' : (evaluation.isScanning ? 'Scanning Job Description…' : `Smart Match — ${escapeHtml(evaluation.tierTitle)}`)}</span>
+                </div>
+              </div>
+
+              <div class="sjg-match-desc" style="font-weight: 700; color: #fff; margin-bottom: 5px;">
+                ${evaluation.isAwaitingJob ? `Click any job posting on ${escapeHtml(job.platform || 'board')} to inspect full JD & fit score` : (evaluation.isScanning ? 'Extracting the full job description before scoring…' : `Role Fit Score: ${evaluation.overallMatchScore}% ${escapeHtml(evaluation.tierTitle)}`)}
+              </div>
+              
+              <div class="sjg-match-inner">
+                <div class="sjg-ring-box">
+                  <svg class="sjg-ring-svg" viewBox="0 0 54 54">
+                    <circle cx="27" cy="27" r="22" stroke="#1e293b" stroke-width="4" fill="none" />
+                    <circle cx="27" cy="27" r="22" stroke="${evaluation.tierColor}" stroke-width="4" fill="none"
+                            stroke-dasharray="138"
+                            stroke-dashoffset="${(evaluation.isAwaitingJob || evaluation.isScanning) ? 138 : strokeDashoffset}"
+                            stroke-linecap="round"
+                            ${(evaluation.isAwaitingJob || evaluation.isScanning) ? '' : `style="--sjg-ring-target: ${strokeDashoffset}; animation: sjgRingFill 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;"`} />
+                  </svg>
+                  <div class="sjg-ring-text">
+                    <span class="sjg-ring-num" style="color:${evaluation.tierColor}; font-size: ${(evaluation.isAwaitingJob || evaluation.isScanning) ? '10px' : '14px'};">${evaluation.isAwaitingJob ? 'READY' : (evaluation.isScanning ? '···' : `${evaluation.overallMatchScore}%`)}</span>
+                  </div>
+                </div>
+                <div class="sjg-match-inner-text">
+                  <div class="sjg-match-inner-title" style="font-size: 13px;">${evaluation.isAwaitingJob ? 'Awaiting Target JD' : (evaluation.isScanning ? 'Reading Description' : (evaluation.overallMatchScore >= 75 ? 'Strong Alignment' : 'Transferable Match'))}</div>
+                  <div class="sjg-match-inner-stats">
+                    ${evaluation.isAwaitingJob 
+                      ? `<span style="color:#94a3b8;">Candidate skills ready (${candidateProfile.skills.length})</span>`
+                      : (evaluation.isScanning
+                        ? `<span style="color:#94a3b8;">Waiting on full job text…</span>`
+                        : `Skills: <strong style="color:#34d399;">${evaluation.verifiedSkills.length}</strong> matched | Gaps: <strong style="color:#f59e0b;">${evaluation.missingSkillGaps.length}</strong>`)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Verified Skills -->
+            <div class="sjg-section-header">
+              <span class="sjg-verified-label">
+                ✓ Verified Skills (Have it)
+              </span>
+              <span class="sjg-total-count">Total ${evaluation.verifiedSkills.length}</span>
+            </div>
+            <div class="sjg-chips-list">
+              ${evaluation.verifiedSkills.length > 0 ? evaluation.verifiedSkills.map(skill => `
+                <div class="sjg-chip verified">
+                  <span>•</span>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</span>
+                </div>
+              `).join('') : '<div style="color:#64748b; font-size:11px; padding:4px 0;">No overlapping skills identified in target JD.</div>'}
+            </div>
+
+            <!-- Skill Gaps -->
+            <div class="sjg-section-header">
+              <span class="sjg-gaps-label">
+                ⚠️ Skill Gaps (Missing)
+              </span>
+              <span class="sjg-total-count">Total ${evaluation.missingSkillGaps.length}</span>
+            </div>
+            <div class="sjg-chips-list">
+              ${evaluation.missingSkillGaps.length > 0 ? evaluation.missingSkillGaps.map(gap => `
+                <div class="sjg-chip gap">
+                  <span>•</span>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;" title="${escapeHtml(gap.name)}">${escapeHtml(gap.name)}</span>
+                </div>
+              `).join('') : '<div style="color:#34d399; font-size:11px; padding:4px 0;">🎉 All core JD requirements covered! Zero skill gaps.</div>'}
+            </div>
+
+            <!-- Prominently Elevated Career Pivot Discovery (V2.0 Hero Action) -->
+            <button id="sjg-smart-pivot-btn" class="sjg-btn-pivot">
+              <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <span style="display:flex; align-items:center; gap:6px; font-weight:800; font-size:12px; color:#ffffff;">
+                  <span style="font-size:13px;">🧭</span> Smart Career Pivot Discovery
+                </span>
+                <span style="background:linear-gradient(90deg, #38bdf8, #818cf8); color:#020617; font-size:9.5px; font-weight:900; padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px; box-shadow:0 0 8px rgba(56,189,248,0.5);">V2.0 AI</span>
+              </div>
+              <div style="font-size:10px; color:#c7d2fe; font-weight:500; text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center; opacity:0.95;">
+                <span>Cross-Domain Transferable Skills & Match Finder</span>
+                <span style="font-size:12px; color:#38bdf8; font-weight:bold;">→</span>
+              </div>
+            </button>
+
+            <!-- Primary Executive Dashboard Button -->
+            <button id="sjg-open-dashboard-btn" class="sjg-btn-executive">
+              👑 Open in Executive Dashboard (PRO)
+            </button>
+
+            <!-- Tailored Application Options -->
+            <div class="sjg-cover-letter-options" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;">
+              <div style="color: #94a3b8; font-size: 10.5px; margin-bottom: 5px; text-transform: uppercase; font-weight:700;">Generate Tailored Application</div>
+              <div class="sjg-buttons-row">
+                <button id="sjg-cl-free-btn" class="sjg-btn-letter">
+                  ✉️ 3-Tier Professional
+                </button>
+                <button id="sjg-cl-pro-btn" class="sjg-btn-faang">
+                  👑 4-Tier Executive
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Edit Candidate Overlay Sub-dialog (Full un-truncated multi-line view) -->
+          ${isEditCandidateOpen ? `
+            <div class="sjg-edit-overlay">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="color:#fff; font-size:13px; font-weight:800;">✏️ Edit Candidate Profile</h4>
+                <button id="sjg-cancel-edit-btn" style="background:none; border:none; color:#64748b; font-size:18px; cursor:pointer;">✕</button>
+              </div>
+              <div class="sjg-input-group">
+                <label>Job Title / Target Role:</label>
+                <input id="sjg-edit-title" value="${escapeHtml(candidateProfile.title)}" />
+              </div>
+              <div class="sjg-input-group">
+                <label>Years of Experience:</label>
+                <input id="sjg-edit-exp" type="number" value="${candidateProfile.yearsOfExperience}" />
+              </div>
+              <div class="sjg-input-group">
+                <label>Skills (Comma-separated, ${candidateProfile.skills.length} total):</label>
+                <input id="sjg-edit-skills" value="${escapeHtml(candidateProfile.skills.join(', '))}" />
+              </div>
+              <div class="sjg-input-group">
+                <label>Full Raw Resume / Work Experience Highlights (${candidateProfile.rawResumeText.length} characters):</label>
+                <textarea id="sjg-edit-resume" rows="10" placeholder="Paste full resume text here without any character truncation...">${escapeHtml(candidateProfile.rawResumeText)}</textarea>
+              </div>
+              <div class="sjg-edit-actions">
+                <button id="sjg-discard-edit-btn" class="sjg-btn-rescan">Cancel</button>
+                <button id="sjg-save-edit-btn" class="sjg-btn-rescan" style="background:#059669; color:#fff; border-color:#10b981; font-weight:700;">💾 Save Full Profile</button>
+              </div>
+            </div>
+          ` : ''}
+
+        </div>
+      `;
+
+      // Event Listeners
+      wrapper.querySelector('#sjg-pill-trigger')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isModalOpen = !isModalOpen;
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-close-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isModalOpen = false;
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-rescan-btn')?.addEventListener('click', () => {
+        cachedJobData = extractFullIndeedJob();
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-toggle-buggy-btn')?.addEventListener('click', () => {
+        isBuggyMode = !isBuggyMode;
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-expand-btn')?.addEventListener('click', () => {
+        isCandidateExpanded = !isCandidateExpanded;
+        renderShadowUI();
+      });
+
+      // Autonomous Bot Event Listeners
+      wrapper.querySelector('#sjg-bot-toggle-btn')?.addEventListener('click', () => {
+        isAutoPilotEnabled = !isAutoPilotEnabled;
+        if (!isAutoPilotEnabled) {
+          if (autoPilotScanTimer) {
+            clearTimeout(autoPilotScanTimer);
+            autoPilotScanTimer = null;
+          }
+        } else {
+          runAutoPageScan(false);
+        }
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-bot-autopilot-toggle')?.addEventListener('change', (e) => {
+        isAutoPilotEnabled = e.target.checked;
+        if (!isAutoPilotEnabled) {
+          if (autoPilotScanTimer) {
+            clearTimeout(autoPilotScanTimer);
+            autoPilotScanTimer = null;
+          }
+        } else {
+          runAutoPageScan(false);
+        }
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-bot-scan-page-btn')?.addEventListener('click', () => {
+        const btn = wrapper.querySelector('#sjg-bot-scan-page-btn');
+        if (btn) btn.innerHTML = '<span>⚡ Scanning & Matching Page Jobs...</span>';
+        setTimeout(() => {
+          const res = runAutoPageScan(true);
+          renderShadowUI();
+          const refreshedBtn = wrapper.querySelector('#sjg-bot-scan-page-btn');
+          if (refreshedBtn) {
+            refreshedBtn.innerHTML = `<span>✅ Scan Complete! ${res.total} Jobs (${res.highMatchCount} High Match)</span>`;
+            setTimeout(() => {
+              if (refreshedBtn) refreshedBtn.innerHTML = '<span>⚡ Scan & Match Page Jobs</span>';
+            }, 2500);
+          }
+        }, 150);
+      });
+
+      wrapper.querySelector('#sjg-bot-test-alert-btn')?.addEventListener('click', () => {
+        const alertBtn = wrapper.querySelector('#sjg-bot-test-alert-btn');
+        if (alertBtn) alertBtn.innerHTML = '<span>📡 Dispatching Alert...</span>';
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            chrome.runtime.sendMessage({
+              action: 'trigger_radar_test',
+              role: candidateProfile.targetRole || 'Senior Engineer',
+              company: cachedJobData?.company || 'Indeed Verified Role'
+            }, () => {
+              if (alertBtn) {
+                alertBtn.innerHTML = '<span>✅ Notification Sent</span>';
+                setTimeout(() => { if (alertBtn) alertBtn.innerHTML = '<span>🔔 Test Radar Alert</span>'; }, 2000);
+              }
+            });
+          } else {
+            if (alertBtn) {
+              alertBtn.innerHTML = '<span>🔔 Alert Triggered</span>';
+              setTimeout(() => { if (alertBtn) alertBtn.innerHTML = '<span>🔔 Test Radar Alert</span>'; }, 2000);
+            }
+          }
+        } catch (e) {
+          if (alertBtn) alertBtn.innerHTML = '<span>🔔 Test Radar Alert</span>';
+        }
+      });
+
+      wrapper.querySelector('#sjg-bot-export-csv-btn')?.addEventListener('click', () => {
+        exportScannedLeadsToCSV();
+        const exportBtn = wrapper.querySelector('#sjg-bot-export-csv-btn');
+        if (exportBtn) {
+          exportBtn.innerHTML = '<span>✅ CSV Exported!</span>';
+          setTimeout(() => {
+            renderShadowUI();
+          }, 2000);
+        }
+      });
+
+      wrapper.querySelector('#sjg-bot-copy-md-btn')?.addEventListener('click', () => {
+        copyScannedLeadsAsMarkdown();
+        const copyBtn = wrapper.querySelector('#sjg-bot-copy-md-btn');
+        if (copyBtn) {
+          copyBtn.innerHTML = '<span>✅ Table Copied!</span>';
+          setTimeout(() => {
+            renderShadowUI();
+          }, 2000);
+        }
+      });
+
+      wrapper.querySelector('#sjg-bot-clear-leads-btn')?.addEventListener('click', () => {
+        scannedLeadsRegistry.clear();
+        scannedCardsCount = 0;
+        renderShadowUI();
+      });
+
+  // Resume Upload Logic - NO TRUNCATION (Up to 100,000 characters)
+      const fileInput = wrapper.querySelector('#sjg-resume-file-input');
+      const uploadBtn = wrapper.querySelector('#sjg-upload-resume-btn');
+
+      uploadBtn?.addEventListener('click', () => {
+        if (fileInput) {
+          fileInput.value = '';
+          fileInput.click();
+        }
+      });
+
+      fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (uploadBtn) {
+          uploadBtn.innerHTML = `⏳ Parsing...`;
+        }
+
+        try {
+          let text = '';
+          let formatName = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+
+          if (typeof SuperJobResumeParser !== 'undefined' && SuperJobResumeParser.parseResumeFile) {
+            const parsed = await SuperJobResumeParser.parseResumeFile(file);
+            text = parsed.text;
+            formatName = parsed.format;
+          } else {
+            text = await new Promise((res, rej) => {
+              const r = new FileReader();
+              r.onload = () => res(r.result || '');
+              r.onerror = rej;
+              r.readAsText(file, 'utf-8');
+            });
+          }
+
+          if (!text || text.trim().length < 40) {
+            isEditCandidateOpen = true;
+            renderShadowUI();
+            return;
+          }
+
+          const textLines = text.split('\n').filter(l => l.trim().length > 0);
+          const firstLine = textLines[0].trim();
+          
+          const fileNameClean = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+          candidateProfile.name = fileNameClean;
+          
+          const roleMatch = firstLine.match(/(Software Engineer|Finance Analyst|Data Scientist|Product Manager|Developer)/i) || 
+                            textLines.find(l => l.match(/(Software Engineer|Finance Analyst|Data Scientist|Product Manager|Developer)/i));
+                            
+          candidateProfile.title = roleMatch ? roleMatch[0] : fileNameClean;
+          candidateProfile.targetRole = roleMatch ? roleMatch[0] : 'Software Engineer';
+          
+          candidateProfile.rawResumeText = text.slice(0, 100000);
+
+          const extractedSkills = extractSkillsFromResumeText(text);
+          if (extractedSkills.length > 0) {
+            candidateProfile.skills = extractedSkills;
+          }
+
+          const expMatch = text.match(/(\d+)\+?\s*years?\s*(?:of)?\s*(?:experience|comprehensive)/i);
+          if (expMatch && expMatch[1]) {
+            candidateProfile.yearsOfExperience = parseInt(expMatch[1], 10);
+          }
+
+          saveProfileToStorage();
+
+          if (uploadBtn) {
+            uploadBtn.innerHTML = `✅ Ingested!`;
+            setTimeout(() => {
+              renderShadowUI();
+            }, 1200);
+          } else {
+            renderShadowUI();
+          }
+        } catch (err) {
+          isEditCandidateOpen = true;
+          renderShadowUI();
+        }
+      });
+
+      wrapper.querySelector('#sjg-quick-save-btn')?.addEventListener('click', () => {
+        saveProfileToStorage();
+        const btn = wrapper.querySelector('#sjg-quick-save-btn');
+        if (btn) {
+          btn.innerText = '✅ Saved!';
+          setTimeout(() => {
+            btn.innerText = '💾 Save';
+          }, 1500);
+        }
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-clear-btn')?.addEventListener('click', () => {
+        if (confirm('Clear current candidate profile completely?')) {
+          candidateProfile = {
+            name: 'Candidate (Cleared)',
+            title: 'Applicant',
+            targetRole: 'Target Role',
+            yearsOfExperience: 0,
+            skills: [],
+            rawResumeText: ''
+          };
+          saveProfileToStorage();
+          renderShadowUI();
+        }
+      });
+
+      wrapper.querySelector('#sjg-edit-btn')?.addEventListener('click', () => {
+        isEditCandidateOpen = true;
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-cancel-edit-btn')?.addEventListener('click', () => {
+        isEditCandidateOpen = false;
+        renderShadowUI();
+      });
+
+      wrapper.querySelector('#sjg-discard-edit-btn')?.addEventListener('click', () => {
+        isEditCandidateOpen = false;
+        renderShadowUI();
+      });
+
+      // Save Full Candidate Profile without truncation
+      wrapper.querySelector('#sjg-save-edit-btn')?.addEventListener('click', () => {
+        const newTitle = wrapper.querySelector('#sjg-edit-title')?.value || candidateProfile.title;
+        const newExp = parseInt(wrapper.querySelector('#sjg-edit-exp')?.value || '0', 10);
+        const newSkills = (wrapper.querySelector('#sjg-edit-skills')?.value || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+        const newResume = wrapper.querySelector('#sjg-edit-resume')?.value || '';
+
+        candidateProfile.title = newTitle;
+        candidateProfile.yearsOfExperience = newExp;
+        candidateProfile.skills = newSkills;
+        candidateProfile.rawResumeText = newResume;
+        saveProfileToStorage();
+        isEditCandidateOpen = false;
+        renderShadowUI();
+      });
+
+      // External actions
+      const remoteDashboardUrl = 'https://ais-dev-dpehhkspkblknqvlwnko6m-423633136396.europe-west2.run.app';
+
+      wrapper.querySelector('#sjg-open-dashboard-btn')?.addEventListener('click', () => {
+        try {
+          const url = new URL(remoteDashboardUrl);
+          url.searchParams.set('tab', 'diagnostics');
+          if (job?.title && job.title !== 'Select a Job on Indeed') {
+            url.searchParams.set('title', job.title);
+            url.searchParams.set('company', job.company || '');
+          }
+          window.open(url.toString(), '_blank');
+        } catch (e) {
+          window.open(remoteDashboardUrl, '_blank');
+        }
+      });
+
+      wrapper.querySelector('#sjg-smart-pivot-btn')?.addEventListener('click', () => {
+        if (evaluation.overallMatchScore < 60) {
+          const pivotQuery = encodeURIComponent(candidateProfile.targetRole || 'Software Engineer');
+          window.open(`https://www.indeed.com/jobs?q=${pivotQuery}`, '_blank');
+        } else {
+          try {
+            const url = new URL(remoteDashboardUrl);
+            url.searchParams.set('tab', 'pivot');
+            if (job?.title && job.title !== 'Select a Job on Indeed') {
+              url.searchParams.set('title', job.title);
+              url.searchParams.set('company', job.company || '');
+              // Sync score and tier for consistent UI across devices
+              url.searchParams.set('score', evaluation.overallMatchScore.toString());
+              url.searchParams.set('tier', evaluation.matchTier);
+            }
+            window.open(url.toString(), '_blank');
+          } catch (e) {
+            window.open(`${remoteDashboardUrl}?tab=pivot`, '_blank');
+          }
+        }
+      });
+
+      wrapper.querySelector('#sjg-cl-free-btn')?.addEventListener('click', () => {
+        // Ensure we use the full name without ellipsis
+        const topSkills = evaluation.verifiedSkills.length > 0
+          ? evaluation.verifiedSkills.map(s => s.fullName || s.name).map(n => n.replace('…', ''))
+          : candidateProfile.skills.slice(0, 4);
+
+        // Robustly detect UK location and job source
+        const url = window.location.href.toLowerCase();
+        const locationText = (job.location || '').toLowerCase();
+        const isUK = locationText.includes('uk') || locationText.includes('england') || 
+                     locationText.includes('london') || locationText.includes('cambridge') || 
+                     locationText.includes('edinburgh') || url.includes('.co.uk');
+
+        let jobSource = '';
+        let portfolioLabel = 'Portfolio';
+        if (url.includes('indeed.com')) {
+          jobSource = ' Indeed';
+          portfolioLabel = 'Indeed Profile/Portfolio';
+        } else if (url.includes('linkedin.com')) {
+          jobSource = ' LinkedIn';
+          portfolioLabel = 'LinkedIn Profile';
+        } else if (url.includes('glassdoor')) {
+          jobSource = ' Glassdoor';
+          portfolioLabel = 'Glassdoor Profile';
+        } else if (url.includes('ziprecruiter')) {
+          jobSource = ' ZipRecruiter';
+          portfolioLabel = 'ZipRecruiter Profile';
+        } else if (url.includes('greenhouse.io') || url.includes('lever.co') || url.includes('myworkdayjobs')) {
+          jobSource = ' the company career site';
+          portfolioLabel = 'Professional Portfolio';
+        }
+        
+        // Dynamic spelling
+        const specialised = isUK ? 'specialised' : 'specialized';
+        
+        // Clean company name: remove stray ratings like "4.1" or "4.1★"
+        const cleanCompany = (job.company || 'your organization').replace(/\s?\d+(\.\d+)?★?$/, '');
+        
+        const candidateDisplayName = (candidateProfile.name && !candidateProfile.name.includes('PII Scrubbed') && candidateProfile.name !== 'Candidate Profile') 
+          ? candidateProfile.name 
+          : '[Your Name]';
+
+        const cl = `[Your Name]
+[Your Phone Number]  •  [Your Email]  •  [Your ${portfolioLabel} URL]
+
+Dear Hiring Team at ${cleanCompany},
+
+I am writing to express my strong enthusiasm for the ${job.title || 'engineering'} position${jobSource ? `, which I discovered through${jobSource}` : ''}. Having tracked ${cleanCompany}'s technical innovations, I am eager to contribute my background in architecting scalable systems and resilient software infrastructure to your initiatives.
+
+With over ${candidateProfile.yearsOfExperience || 10} years of hands-on engineering experience, I bring deep domain mastery aligned directly with your core technical requirements:
+• ${topSkills[0] || 'High-performance backend systems & microservices'}
+• ${topSkills[1] || 'Distributed architecture, data modeling & low-latency execution'}
+• ${topSkills[2] || 'End-to-end testing, CI/CD automation & resilient cloud operations'}
+${topSkills[3] ? `• ${topSkills[3]}` : ''}
+
+Throughout my career, I have ${specialised} in turning ambiguous product goals into robust, maintainable technical reality while championing clean code and team mentoring. I am particularly excited about ${job.company || 'your team'}'s scale and look forward to discussing how my experience can deliver immediate impact.
+
+Thank you for your time and consideration.
+
+Sincerely,
+
+${candidateDisplayName}`;
+
+        navigator.clipboard.writeText(cl);
+        const btn = wrapper.querySelector('#sjg-cl-free-btn');
+        if (btn) {
+          btn.innerText = '✅ Copied!';
+          setTimeout(() => { btn.innerText = '✉️ 3-Tier Professional'; }, 2000);
+        }
+      });
+
+      wrapper.querySelector('#sjg-cl-pro-btn')?.addEventListener('click', () => {
+        window.open(`${remoteDashboardUrl}?tab=coverletter`, '_blank');
+      });
+
+      // Fireworks celebration for >= 90% top-tier matches
+      if (evaluation.overallMatchScore >= 90 && isModalOpen) {
+        const currentJobId = `${job.title}::${job.company}::${evaluation.overallMatchScore}`;
+        if (lastFireworksJobKey !== currentJobId) {
+          lastFireworksJobKey = currentJobId;
+          setTimeout(() => {
+            launchCelebrationFireworks(wrapper.querySelector('#sjg-fireworks-canvas'));
+          }, 150);
+        }
+      }
+
+      // Restore scroll position after render
+      const newBody = wrapper.querySelector('.sjg-body');
+      if (newBody && savedScrollTop > 0) {
+        newBody.scrollTop = savedScrollTop;
+      }
+
+      // Synchronize active card badge on the page with HUD score immediately
+      syncActiveCardBadge(job, evaluation);
+
+    } catch (err) {
+      console.error('[SuperJobGenie] renderShadowUI error:', err);
+    }
+  }
+
+  /**
+   * Fireworks Particle Engine for Top Tier Matches
+   */
+  function launchCelebrationFireworks(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (fireworkAnimId) {
+      cancelAnimationFrame(fireworkAnimId);
+      fireworkAnimId = null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width || 420;
+    canvas.height = rect.height || 600;
+
+    const colors = ['#38bdf8', '#34d399', '#f59e0b', '#ec4899', '#a855f7', '#60a5fa', '#fbbf24', '#ffffff'];
+    const particles = [];
+
+    const burstCenters = [
+      { x: canvas.width * 0.5, y: 140 },
+      { x: canvas.width * 0.25, y: 190 },
+      { x: canvas.width * 0.75, y: 170 }
+    ];
+
+    burstCenters.forEach(burst => {
+      for (let i = 0; i < 40; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        particles.push({
+          x: burst.x,
+          y: burst.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1,
+          size: Math.random() * 3 + 2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          decay: Math.random() * 0.02 + 0.015,
+          gravity: 0.12
+        });
+      }
+    });
+
+    function frame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let aliveCount = 0;
+
+      for (let p of particles) {
+        if (p.alpha > 0) {
+          aliveCount++;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.gravity;
+          p.alpha -= p.decay;
+
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.fillStyle = p.color;
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      if (aliveCount > 0) {
+        fireworkAnimId = requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        fireworkAnimId = null;
+      }
+    }
+
+    frame();
+  }
+
+  /**
+   * Synchronize the active inspected job card badge with the full-body evaluation score in the HUD.
+   * Guarantees 0% discrepancy between the HUD detail score and the card badge!
+   */
+  function syncActiveCardBadge(job, evalResult) {
+    if (!job || !evalResult || !job.title || job.title === 'Select a Job on Indeed' || evalResult.overallMatchScore <= 0) return;
+    try {
+      const cardSelectors = [
+        'div.job_seen_beacon',
+        'div[data-jk]',
+        'div.cardOutline',
+        '[data-testid="job-card"]',
+        '[data-testid="job-result"]',
+        '[data-test="job-listing-item"]',
+        'li[data-test="jobListing"]',
+        'li.jobs-search-results__list-item',
+        'div.job-card-container'
+      ];
+      const allCards = Array.from(document.querySelectorAll(cardSelectors.join(', ')));
+      allCards.forEach(card => {
+        const titleEl = card.querySelector('h1.job_title, h2.job_title, [class*="job_title"], a.job_link, a[data-test="job-title"], a[data-test="job-link"], [class*="jobTitle"], a.jcs-JobTitle, h2.jobTitle span[title], h2.jobTitle, a[id^="job_"], a.job-card-list__title, [class*="job-card-list__title"], h2, h3, a');
+        const title = titleEl?.innerText?.replace(/^new\s+/i, '')?.trim() || '';
+        const jk = card.getAttribute('data-jk') || card.querySelector('[data-jk]')?.getAttribute('data-jk') || '';
+        
+        const isMatch = (job.jk && jk && job.jk === jk) || 
+                        (title && job.title && (title.toLowerCase() === job.title.toLowerCase() || job.title.toLowerCase().includes(title.toLowerCase()) || title.toLowerCase().includes(job.title.toLowerCase()))) ||
+                        card.classList.contains('vjs-highlight') ||
+                        card.classList.contains('jobsearch-JobCard--selected');
+
+        if (isMatch) {
+          const score = evalResult.overallMatchScore;
+          const isHigh = score >= 80;
+          let badge = card.querySelector('.sjg-card-stamp');
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'sjg-card-stamp';
+            const insertTarget = card.querySelector('.resultContent, .jobsearch-CompanyInfoContainer, .job-card-container__primary-description') || titleEl?.parentElement || card;
+            insertTarget.prepend(badge);
+          }
+          badge.setAttribute('data-score', score.toString());
+          badge.setAttribute('data-active-target', 'true');
+          badge.style.display = 'inline-flex';
+          badge.style.alignItems = 'center';
+          badge.style.gap = '6px';
+          
+          const isExpired = Boolean(job.freshness?.isExpired);
+          const isStale = Boolean(job.freshness?.isStale);
+
+          if (isExpired) {
+            badge.style.background = 'linear-gradient(135deg, rgba(69, 10, 10, 0.95), rgba(127, 29, 29, 0.95))';
+            badge.style.color = '#fca5a5';
+            badge.style.border = '1px solid rgba(248, 113, 113, 0.85)';
+            badge.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.4)';
+            badge.innerHTML = `
+              <span style="font-size:12px;">⚠️</span>
+              <span style="color:#fff; font-weight:800;">Closed / Expired</span>
+              <span style="opacity:0.9; font-size:10px;">• ${score}% Match</span>
+              <span style="color:#fca5a5; font-size:10px; font-weight:800;">🎯 Active Target</span>
+            `;
+          } else {
+            badge.style.background = isHigh ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(4, 120, 87, 0.95))' : 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.95))';
+            badge.style.color = isHigh ? '#34d399' : '#cbd5e1';
+            badge.style.border = isHigh ? '1px solid rgba(52, 211, 153, 0.85)' : '1px solid rgba(100, 116, 139, 0.5)';
+            badge.style.boxShadow = isHigh ? '0 0 12px rgba(52, 211, 153, 0.45)' : '0 1px 4px rgba(0,0,0,0.3)';
+            badge.innerHTML = `
+              <span style="font-size:12px;">🤖</span>
+              <span style="color:#fff; font-weight:800;">${score}% Match</span>
+              <span style="color:${isStale ? '#fbbf24' : '#34d399'}; font-size:10px; font-weight:700;">• ${isStale ? '⏰ 30+ Days' : '🟢 Active'}</span>
+              <span style="color:${isHigh ? '#6ee7b7' : '#94a3b8'}; font-size:10px; font-weight:800;">🎯 Active Target</span>
+            `;
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[SuperJobGenie] Card badge sync error:', e);
+    }
+  }
+
+  /**
+   * Autonomous Scout Bot: Scan visible job cards on the current page,
+   * calculate match scores against candidate profile, and inject glowing tags directly on cards.
+   */
+  function runAutoPageScan(force = false) {
+    try {
+      const cardSelectors = [
+        // Handshake
+        '[data-hook="jobs-card"]',
+        '[data-hook="search-result"]',
+        'a[href*="/stu/jobs/"]',
+        'a[href*="/stu/postings/"]',
+        'div[class*="job-card"]',
+        // Indeed
+        'div.job_seen_beacon',
+        'div[data-jk]',
+        'div.cardOutline',
+        // Glassdoor & ZipRecruiter
+        '[data-testid="job-card"]',
+        '[data-testid="job-result"]',
+        '[data-test="job-listing-item"]',
+        'li[data-test="jobListing"]',
+        // LinkedIn
+        'li.jobs-search-results__list-item',
+        'li.jobs-search-results-list__list-item',
+        'div.job-card-container',
+        'div.jobs-search-results-list__list-item',
+        'li.job-card-container--clickable',
+        'li[data-occludable-job-id]',
+        'div[data-job-id]',
+        'div.job-card-list__entity-lockup',
+        'div.job-card-list',
+        'div.job-search-card',
+        'div[data-entity-urn*="urn:li:jobPosting:"]'
+      ];
+      
+      let rawCards = [];
+      try {
+        rawCards = Array.from(document.querySelectorAll(cardSelectors.join(', ')));
+      } catch (e) {
+        console.warn('[SuperJobGenie] Selector error:', e);
+      }
+
+      // Handshake Deep Discovery: find any container wrapping a Handshake job link reliably
+      if (detectPlatform() === 'Handshake' || window.location.hostname.includes('joinhandshake.com') || window.location.hostname.includes('handshake.com')) {
+        const hsLinks = document.querySelectorAll('a[href*="/stu/jobs/"], a[href*="/stu/postings/"], [data-hook="jobs-card"]');
+        hsLinks.forEach(lnk => {
+          if (lnk.closest('.job-details-pane, [data-hook="job-details"], #sjg-shadow-host-root')) return;
+          const c = lnk.closest('li, [data-hook="jobs-card"], [data-hook="search-result"], div[class*="job-card"]') || lnk;
+          if (c && !rawCards.includes(c) && c !== document.body && !c.closest('#sjg-shadow-host-root')) {
+            rawCards.push(c);
+          }
+        });
+      }
+
+      // LinkedIn Semantic Deep Discovery: find any container wrapping a job link reliably in search list
+      if (detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com')) {
+        const listContainer = document.querySelector('.scaffold-layout__list, .jobs-search-results-list, ul.scaffold-layout__list-container') || document.body;
+        const lnLinks = listContainer.querySelectorAll('a[href*="/jobs/view/"], a.job-card-list__title, a.job-card-container__link');
+        lnLinks.forEach(lnk => {
+          if (lnk.closest('.jobs-search__job-details, .scaffold-layout__detail, .jobs-details, #sjg-shadow-host-root')) return;
+          const c = lnk.closest('li.jobs-search-results__list-item, li.jobs-search-results-list__list-item, div.job-card-container, div.jobs-search-results-list__list-item, li[data-occludable-job-id], li.artdeco-list__item');
+          if (c && !rawCards.includes(c) && c !== document.body && !c.closest('#sjg-shadow-host-root')) {
+            rawCards.push(c);
+          }
+        });
+      }
+
+      const allCards = rawCards.filter(el => {
+        if (el.classList.contains('jobsearch-ResultsList') || el.id === 'mosaic-provider-jobcards') return false;
+        // Strictly exclude anything inside the active details pane, JD container, or HUD
+        if (el.closest('.jobs-search__job-details, .scaffold-layout__detail, .jobs-details, .jobs-description-content, #jobDescriptionText, [data-test="job-details"], .jobsearch-JobComponent, #sjg-shadow-host-root')) {
+          return false;
+        }
+        const parentCard = el.parentElement?.closest(cardSelectors.join(', '));
+        return !parentCard;
+      });
+
+      let newlyScanned = 0;
+      let pageHighMatches = 0;
+
+      allCards.forEach(card => {
+        const titleEl = card.querySelector(
+          '[data-hook="job-title"], [data-hook="jobs-card-title"], ' +
+          'a.job-card-list__title strong, a.job-card-list__title span[aria-hidden="true"], a.job-card-list__title, ' +
+          'a.job-card-container__link span[aria-hidden="true"], a.job-card-container__link, ' +
+          '.artdeco-entity-lockup__title a, .artdeco-entity-lockup__title, ' +
+          'a.jcs-JobTitle, h2.jobTitle span[title], h2.jobTitle, a.job_link, a[data-test="job-title"], a[data-test="job-link"], ' +
+          'h1.job_title, h2.job_title, [class*="job_title"], [class*="jobTitle"], ' +
+          'a[href*="/jobs/view/"] strong, a[href*="/jobs/view/"], a[href*="/stu/jobs/"] h2'
+        );
+        const rawTitle = titleEl?.innerText?.replace(/^new\s+/i, '')?.trim() || '';
+        const title = cleanJobTitle(rawTitle);
+        if (!title || isSearchHeader(title)) return;
+
+        const compEl = card.querySelector(
+          '[data-hook="employer-name"], a[href*="/stu/employers/"], ' +
+          'a[href*="/company/"], .job-card-container__company-name, .job-card-container__primary-description a, .artdeco-entity-lockup__subtitle a, .artdeco-entity-lockup__subtitle, ' +
+          '.job-card-container__primary-description, span.job-card-container__primary-description, .base-search-card__subtitle, a[data-tracking-control-name*="company"], ' +
+          'a.hiring_company_text, [data-testid="company-name"], [data-testid="hiring-company"], [class*="hiring_company"], [class*="company_name"], [data-test="employer-short-name"], [data-test="employer-name"], [class*="employerName"], .companyName, span.css-63koeb, [data-company-name="true"]'
+        );
+        let company = cleanCompanyName(compEl?.innerText || '');
+        if (!company) {
+          const fallbackComp = card.querySelector('.artdeco-entity-lockup__subtitle, .job-card-container__primary-description, [class*="company"]');
+          company = cleanCompanyName(fallbackComp?.innerText || '');
+        }
+        if (isJunkCompany(company)) company = '';
+
+        const snippetEl = card.querySelector('.job-snippet, [data-testid="job-snippet"], [class*="job-snippet"], ul.css-9446fg, .underShelfFooter, .job-card-list__snippet');
+        const snippet = snippetEl?.innerText?.trim() || '';
+        let jk = card.getAttribute('data-occludable-job-id') || 
+                 card.getAttribute('data-job-id') || 
+                 card.getAttribute('data-jk') || 
+                 card.getAttribute('data-id') || 
+                 card.querySelector('[data-jk]')?.getAttribute('data-jk') || '';
+        if (jk) {
+          const numMatch = jk.match(/\d{6,}/);
+          if (numMatch) jk = numMatch[0];
+        }
+        if (!jk) {
+          const lnk = card.querySelector('a[href*="/jobs/view/"], a[href*="/stu/jobs/"], a[href*="/stu/postings/"]');
+          const m = lnk?.href?.match(/\/jobs\/view\/(\d+)|\/stu\/(?:jobs|postings)\/(\d+)|currentJobId=(\d+)/);
+          if (m) jk = m[1] || m[2] || m[3] || '';
+        }
+
+        const isCurrentActive = Boolean(
+          (cachedJobData && cachedJobData.title && title && cachedJobData.title.toLowerCase().trim() === title.toLowerCase().trim()) ||
+          (cachedJobData?.jk && jk && cachedJobData.jk === jk) ||
+          card.classList.contains('vjs-highlight') ||
+          card.classList.contains('jobsearch-JobCard--selected') ||
+          card.getAttribute('aria-selected') === 'true' ||
+          Boolean(card.querySelector('.jobsearch-JobCard--selected, .vjs-highlight'))
+        );
+
+        let cardUrl = card.querySelector('a[href*="/jobs/view/"], a[href*="/stu/jobs/"], a')?.href || '';
+        if (jk && (detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com'))) {
+          cardUrl = `https://www.linkedin.com/jobs/view/${jk}/`;
+        } else if (!cardUrl && jk) {
+          if (detectPlatform() === 'Handshake') {
+            cardUrl = `https://app.joinhandshake.com/stu/jobs/${jk}`;
+          } else {
+            cardUrl = `${window.location.origin}/viewjob?jk=${jk}`;
+          }
+        }
+
+        const leadKey = jk ? `jk_${jk}` : `${title}::${company || 'Target Employer'}`;
+
+        const existingBadge = card.querySelector('.sjg-card-stamp');
+        if (existingBadge && !force && !isCurrentActive) {
+          const score = parseInt(existingBadge.getAttribute('data-score') || '0', 10);
+          if (score >= 80) pageHighMatches++;
+          // Guarantee card is in session registry even if already visually badged
+          if (!scannedLeadsRegistry.has(leadKey)) {
+            scannedLeadsRegistry.set(leadKey, {
+              key: leadKey,
+              title,
+              company: company || 'Target Employer',
+              location: 'On-site / Hybrid',
+              score,
+              jk,
+              url: cardUrl,
+              snippet,
+              isExpired: false,
+              isStale: false,
+              verifiedSkills: [],
+              scannedAt: Date.now()
+            });
+          }
+          return;
+        }
+
+        let score = 0;
+        let matchedSkills = [];
+
+        if (isCurrentActive && cachedJobData && cachedJobData.characterCount >= 80) {
+          const currentEval = evaluateJobMatch(cachedJobData, candidateProfile);
+          score = currentEval.overallMatchScore;
+          matchedSkills = currentEval.verifiedSkills || [];
+        } else {
+          const evalResult = evaluateJobMatch({
+            title,
+            company: company || 'Target Employer',
+            fullBodyText: snippet,
+            isCardScan: true
+          }, candidateProfile);
+          score = evalResult.overallMatchScore;
+          matchedSkills = evalResult.verifiedSkills || [];
+        }
+
+        if (score >= 80) pageHighMatches++;
+
+        // Save / Update into global session registry for CSV / Markdown export
+        const locEl = card.querySelector('[data-hook="job-location"], [data-testid="text-location"], .companyLocation, [class*="companyLocation"], .job-search-card__location, .job-card-container__metadata-item');
+        const location = locEl?.innerText?.trim() || 'On-site / Hybrid';
+        const cardFreshness = extractJobFreshness(card, snippet);
+
+        scannedLeadsRegistry.set(leadKey, {
+          key: leadKey,
+          title,
+          company: company || 'Target Employer',
+          location,
+          score,
+          jk,
+          url: cardUrl,
+          snippet,
+          isExpired: Boolean(cardFreshness.isExpired),
+          isStale: Boolean(cardFreshness.isStale),
+          verifiedSkills: matchedSkills,
+          scannedAt: Date.now()
+        });
+
+        if (existingBadge) existingBadge.remove();
+
+        const badge = document.createElement('div');
+        badge.className = 'sjg-card-stamp';
+        badge.setAttribute('data-score', score.toString());
+        if (isCurrentActive) badge.setAttribute('data-active-target', 'true');
+        const isHigh = score >= 80;
+
+        if (cardFreshness.isExpired) {
+          badge.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(69, 10, 10, 0.95), rgba(127, 29, 29, 0.95));
+            color: #fca5a5;
+            border: 1px solid rgba(248, 113, 113, 0.85);
+            border-radius: 6px;
+            padding: 3px 8px;
+            margin: 6px 0 4px 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+            z-index: 50;
+            width: fit-content;
+            transition: all 0.2s ease;
+          `;
+          badge.innerHTML = `
+            <span style="font-size:12px;">⚠️</span>
+            <span style="color:#fff; font-weight:800;">Closed / Expired</span>
+            <span style="opacity:0.85; font-size:10px;">• ${score}% Match</span>
+            <span style="color:#fca5a5; font-size:10px; font-weight:700;">${isCurrentActive ? '🎯 Active Target' : '🔍 Inspect'}</span>
+          `;
+        } else {
+          badge.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: ${isHigh ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(4, 120, 87, 0.95))' : 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.95))'};
+            color: ${isHigh ? '#34d399' : '#cbd5e1'};
+            border: 1px solid ${isHigh ? 'rgba(52, 211, 153, 0.85)' : 'rgba(100, 116, 139, 0.5)'};
+            border-radius: 6px;
+            padding: 3px 8px;
+            margin: 6px 0 4px 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: ${isHigh ? '0 0 10px rgba(52, 211, 153, 0.35)' : '0 1px 4px rgba(0,0,0,0.3)'};
+            z-index: 50;
+            width: fit-content;
+            transition: all 0.2s ease;
+          `;
+          badge.innerHTML = `
+            <span style="font-size:12px;">🤖</span>
+            <span style="color:#fff; font-weight:800;">${score}% Match</span>
+            <span style="color:${cardFreshness.isStale ? '#fbbf24' : '#34d399'}; font-size:10px; font-weight:700;">• ${cardFreshness.isStale ? '⏰ 30+ Days' : '🟢 Active'}</span>
+            <span style="color:${isHigh ? '#6ee7b7' : '#94a3b8'}; font-size:10px; font-weight:${isCurrentActive ? '800' : '600'};">${isCurrentActive ? '🎯 Active Target' : '🔍 Inspect'}</span>
+          `;
+        }
+
+        badge.addEventListener('mouseenter', () => {
+          badge.style.transform = 'scale(1.03)';
+          badge.style.filter = 'brightness(1.15)';
+        });
+        badge.addEventListener('mouseleave', () => {
+          badge.style.transform = 'scale(1)';
+          badge.style.filter = 'brightness(1)';
+        });
+        badge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const clickTarget = card.querySelector('a.job_link, a[data-test="job-title"], a.jcs-JobTitle, h2 a, h2') || card;
+          
+          lastClickedCard = {
+            title: title || '',
+            company: company || '',
+            jk: jk || '',
+            score: score || 0,
+            snippet: snippet,
+            clickedAt: Date.now()
+          };
+
+          clickTarget.click();
+          isModalOpen = true;
+
+          // Render immediately with provisional preview score so it NEVER resets to ··· or spins forever
+          checkAndAutoRescan(true);
+          renderShadowUI();
+
+          const pollIntervals = [100, 250, 450, 750, 1200, 1800, 2600, 3600];
+          pollIntervals.forEach(delay => {
+            setTimeout(() => {
+              checkAndAutoRescan(false);
+            }, delay);
+          });
+        });
+
+        const insertTarget = card.querySelector('.resultContent, .jobsearch-CompanyInfoContainer, .job-card-container__primary-description') || titleEl?.parentElement || card;
+        insertTarget.prepend(badge);
+        newlyScanned++;
+      });
+
+      scannedCardsCount = allCards.length;
+      highMatchCount = pageHighMatches;
+      return { total: allCards.length, newlyScanned, highMatchCount: pageHighMatches };
+    } catch (e) {
+      console.warn('[SuperJobGenie Bot] Page scan error:', e);
+      return { total: 0, newlyScanned: 0, highMatchCount: 0 };
+    }
+  }
+
+  function debouncedAutoPageScan() {
+    if (!isAutoPilotEnabled) return;
+    if (autoPilotScanTimer) clearTimeout(autoPilotScanTimer);
+    autoPilotScanTimer = setTimeout(() => {
+      autoPilotScanTimer = null;
+      runAutoPageScan(false);
+      renderShadowUI();
+    }, 600);
+  }
+
+  /**
+   * Rescan and Auto-detection Trigger
+   */
+  let lastJobKey = '';
+  let lastBodyLength = 0;
+  let lastHadRealBody = false;
+
+  function checkAndAutoRescan(forceRescan = false) {
+    if (isEditCandidateOpen) return; // Guard: Never auto-rescan while user is editing profile
+    
+    const job = extractFullIndeedJob();
+    const currentJobKey = `${job.title}::${job.company}::${job.characterCount}::${job.jk || ''}`;
+    const hasSubstantialBody = Boolean(job.fullBodyText && job.characterCount >= 80);
+
+    const jobChanged = currentJobKey !== lastJobKey;
+    const bodyNewlyArrived = !lastHadRealBody && hasSubstantialBody;
+    const bodySignificantlyExpanded = Math.abs(job.characterCount - lastBodyLength) >= 20;
+
+    if (!forceRescan && !jobChanged && !bodyNewlyArrived && !bodySignificantlyExpanded) {
+      return;
+    }
+
+    lastJobKey = currentJobKey;
+    lastBodyLength = job.characterCount;
+    lastHadRealBody = hasSubstantialBody;
+    cachedJobData = job;
+
+    // Immediately register every active viewed job into scannedLeadsRegistry
+    if (job && job.title && !isSearchHeader(job.title) && job.title !== 'Select a Job on Indeed') {
+      const cleanT = cleanJobTitle(job.title);
+      let cleanC = cleanCompanyName(job.company) || (lastClickedCard?.company ? cleanCompanyName(lastClickedCard.company) : '') || 'Target Employer';
+      const evalResult = evaluateJobMatch(job, candidateProfile);
+      const leadKey = job.jk ? `jk_${job.jk}` : `${cleanT}::${cleanC}`;
+      
+      let finalUrl = window.location.href;
+      if ((detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com')) && job.jk) {
+        finalUrl = `https://www.linkedin.com/jobs/view/${job.jk}/`;
+      }
+
+      scannedLeadsRegistry.set(leadKey, {
+        key: leadKey,
+        title: cleanT,
+        company: cleanC,
+        location: job.location || 'On-site / Hybrid',
+        score: evalResult.overallMatchScore,
+        jk: job.jk || '',
+        url: finalUrl,
+        snippet: (job.fullBodyText || '').slice(0, 300),
+        isExpired: Boolean(job.freshness?.isExpired),
+        isStale: Boolean(job.freshness?.isStale),
+        verifiedSkills: evalResult.verifiedSkills || [],
+        scannedAt: Date.now()
+      });
+      scannedCardsCount = Math.max(scannedCardsCount, scannedLeadsRegistry.size);
+    }
+
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    if (forceRescan) {
+      renderShadowUI();
+    } else {
+      renderDebounceTimer = setTimeout(() => {
+        renderDebounceTimer = null;
+        renderShadowUI();
+      }, 100);
+    }
+  }
+
+  // Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isModalOpen) {
+      if (isEditCandidateOpen) {
+        isEditCandidateOpen = false;
+      } else {
+        isModalOpen = false;
+      }
+      renderShadowUI();
+    }
+  });
+
+  // Extension Message Bridge
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'ping') {
+        const job = cachedJobData || extractFullIndeedJob();
+        sendResponse({
+          success: true,
+          jobTitle: job.title,
+          company: job.company,
+          charCount: job.characterCount,
+          platform: job.platform,
+          botActive: isAutoPilotEnabled,
+          scannedCount: scannedCardsCount,
+          highMatchCount: highMatchCount
+        });
+        return true;
+      }
+
+      if (request.action === 'open_inpage_modal' || request.action === 'toggle_modal') {
+        isModalOpen = true;
+        renderShadowUI();
+        sendResponse({ success: true, charCount: cachedJobData?.characterCount || 0 });
+        return true;
+      }
+
+      if (request.action === 'scan_page_jobs') {
+        const res = runAutoPageScan(true);
+        isModalOpen = true;
+        renderShadowUI();
+        sendResponse({ success: true, count: res.total, highMatchCount: res.highMatchCount });
+        return true;
+      }
+    });
+  }
+
+  // Robust Initialization
+  function initWhenReady() {
+    if (document.body) {
+      renderShadowUI();
+      try {
+        const initialJob = extractFullIndeedJob();
+        cachedJobData = initialJob;
+        renderShadowUI();
+        if (isAutoPilotEnabled) {
+          setTimeout(() => {
+            runAutoPageScan(false);
+            renderShadowUI();
+          }, 600);
+        }
+      } catch (err) {
+        console.error('[SuperJobGenie] Initial scan error:', err);
+      }
+    } else {
+      setTimeout(initWhenReady, 50);
+    }
+  }
+  initWhenReady();
+
+  // SPA navigation events (including pushState & replaceState interception for Glassdoor, Indeed, LinkedIn)
+  let spaRescanTimer = null;
+  function triggerSpaRescan() {
+    if (spaRescanTimer) clearTimeout(spaRescanTimer);
+    spaRescanTimer = setTimeout(() => {
+      checkAndAutoRescan(true);
+      debouncedAutoPageScan();
+    }, 200);
+  }
+
+  try {
+    const originalPushState = history.pushState;
+    history.pushState = function() {
+      const result = originalPushState.apply(this, arguments);
+      triggerSpaRescan();
+      return result;
+    };
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function() {
+      const result = originalReplaceState.apply(this, arguments);
+      triggerSpaRescan();
+      return result;
+    };
+  } catch (e) {}
+
+  window.addEventListener('popstate', triggerSpaRescan);
+  window.addEventListener('hashchange', triggerSpaRescan);
+
+  // Multi-platform Job Card Click Delegation (Indeed, Glassdoor, ZipRecruiter, LinkedIn, Handshake)
+  let clickRescanTimer = null;
+  document.addEventListener('click', (e) => {
+    if (e.target && (e.target.closest('#sjg-shadow-host-root') || e.target.id === 'sjg-shadow-host-root')) {
+      return;
+    }
+
+    // Identify clicked job card across Indeed, Glassdoor, ZipRecruiter, LinkedIn, and Handshake
+    const cardCandidate = e.target.closest(
+      // Handshake
+      '[data-hook="jobs-card"], [data-hook="search-result"], a[href*="/stu/jobs/"], a[href*="/stu/postings/"], ' +
+      // Indeed
+      'div.job_seen_beacon, div[data-jk], li:has([data-jk]), div.cardOutline, .resultContent, a.jcs-JobTitle, ' +
+      // Glassdoor
+      '[data-test="job-listing-item"], li[data-test="jobListing"], li[data-id], article[data-test="job-card"], [class*="JobsList_jobListItem"], [class*="JobCard_"], a[data-test="job-link"], a[data-test="job-title"], ' +
+      // ZipRecruiter
+      'article.job_result, article.job_card, [data-testid="job-card"], [data-testid="job-result"], div[class*="job_result"], div[class*="jobCard"], li.job-listing, a.job_link, a[class*="job_link"], ' +
+      // LinkedIn
+      'li.jobs-search-results__list-item, li.jobs-search-results-list__list-item, div.job-card-container, div[data-job-id], li[data-occludable-job-id], .job-card-list, li.job-card-container--clickable, div.jobs-search-results-list__list-item, div.job-card-list__entity-lockup, li.artdeco-list__item, div.base-card'
+    );
+
+    const cardEl = cardCandidate?.closest(
+      '[data-hook="jobs-card"], [data-hook="search-result"], div.job_seen_beacon, div[data-jk], li, div.cardOutline, article, [data-test="job-listing-item"], [class*="JobsList_jobListItem"], [class*="JobCard_"], div.job-card-container, li.jobs-search-results-list__list-item, li.artdeco-list__item'
+    ) || cardCandidate;
+
+    if (cardEl && !cardEl.closest('.jobs-search__job-details, .scaffold-layout__detail, .jobs-details, .jobs-description-content, #jobDescriptionText, [data-test="job-details"], .jobsearch-JobComponent, #sjg-shadow-host-root') && !cardEl.classList.contains('jobsearch-ResultsList') && cardEl.id !== 'mosaic-provider-jobcards') {
+      const rawT = cardEl.querySelector(
+        '[data-hook="job-title"], [data-hook="jobs-card-title"], ' +
+        'a.job-card-list__title strong, a.job-card-list__title span[aria-hidden="true"], a.job-card-list__title, ' +
+        'a.job-card-container__link span[aria-hidden="true"], a.job-card-container__link, ' +
+        '.artdeco-entity-lockup__title a, .artdeco-entity-lockup__title, ' +
+        'a.jcs-JobTitle, h2.jobTitle span[title], h2.jobTitle, a.job_link, a[data-test="job-title"], a[data-test="job-link"], ' +
+        'h1.job_title, h2.job_title, [class*="job_title"], [class*="jobTitle"], ' +
+        'a[href*="/jobs/view/"] strong, a[href*="/jobs/view/"], a[href*="/stu/jobs/"] h2'
+      )?.innerText?.replace(/^new\s+/i, '')?.trim();
+      const t = cleanJobTitle(rawT);
+      const compEl = cardEl.querySelector(
+        '[data-hook="employer-name"], a[href*="/stu/employers/"], ' +
+        'a[href*="/company/"], .job-card-container__company-name, .job-card-container__primary-description a, .artdeco-entity-lockup__subtitle a, .artdeco-entity-lockup__subtitle, ' +
+        '.job-card-container__primary-description, span.job-card-container__primary-description, .base-search-card__subtitle, a[data-tracking-control-name*="company"], ' +
+        'a.hiring_company_text, [data-testid="company-name"], [data-testid="hiring-company"], [class*="hiring_company"], [class*="company_name"], [data-test="employer-short-name"], [data-test="employer-name"], [class*="employerName"], .companyName, span.css-63koeb, [data-company-name="true"]'
+      );
+      let c = cleanCompanyName(compEl?.innerText || '');
+      if (!c) {
+        const fallbackComp = cardEl.querySelector('.artdeco-entity-lockup__subtitle, .job-card-container__primary-description, [class*="company"]');
+        c = cleanCompanyName(fallbackComp?.innerText || '');
+      }
+      if (isJunkCompany(c)) c = '';
+
+      let jk = cardEl.getAttribute('data-occludable-job-id') || 
+               cardEl.getAttribute('data-job-id') || 
+               cardEl.getAttribute('data-jk') || 
+               cardEl.getAttribute('data-id') || 
+               cardEl.querySelector('[data-jk]')?.getAttribute('data-jk') || '';
+      if (jk) {
+        const numMatch = jk.match(/\d{6,}/);
+        if (numMatch) jk = numMatch[0];
+      }
+      if (!jk) {
+        const link = cardEl.querySelector('a[href*="/jobs/view/"], a[href*="/stu/jobs/"], a[href*="/stu/postings/"]');
+        const match = link?.href?.match(/\/jobs\/view\/(\d+)|\/stu\/(?:jobs|postings)\/(\d+)|currentJobId=(\d+)/);
+        if (match) jk = match[1] || match[2] || match[3] || '';
+      }
+      const badge = cardEl.querySelector('.sjg-card-stamp');
+      const score = badge ? parseInt(badge.getAttribute('data-score') || '0', 10) : 0;
+      const snippet = cardEl.querySelector('.job-snippet, [data-testid="job-snippet"], [class*="job-snippet"], ul.css-9446fg, .underShelfFooter, .job-card-list__snippet')?.innerText?.trim() || '';
+
+      if (t && !isSearchHeader(t)) {
+        lastClickedCard = { 
+          title: t, 
+          company: c, 
+          jk: jk || '',
+          score: score || 0,
+          snippet: snippet,
+          clickedAt: Date.now()
+        };
+
+        const leadKey = jk ? `jk_${jk}` : `${t}::${c || 'Target Employer'}`;
+        let cardUrl = cardEl.querySelector('a[href*="/jobs/view/"], a[href*="/stu/jobs/"], a')?.href || '';
+        if (jk && (detectPlatform() === 'LinkedIn' || window.location.hostname.includes('linkedin.com'))) {
+          cardUrl = `https://www.linkedin.com/jobs/view/${jk}/`;
+        } else if (!cardUrl && jk) {
+          if (detectPlatform() === 'Handshake') {
+            cardUrl = `https://app.joinhandshake.com/stu/jobs/${jk}`;
+          } else {
+            cardUrl = `${window.location.origin}/viewjob?jk=${jk}`;
+          }
+        }
+
+        if (!scannedLeadsRegistry.has(leadKey)) {
+          scannedLeadsRegistry.set(leadKey, {
+            key: leadKey,
+            title: t,
+            company: c || 'Target Employer',
+            location: 'On-site / Hybrid',
+            score: score || 85,
+            jk: jk || '',
+            url: cardUrl,
+            snippet,
+            isExpired: false,
+            isStale: false,
+            verifiedSkills: [],
+            scannedAt: Date.now()
+          });
+          scannedCardsCount = Math.max(scannedCardsCount, scannedLeadsRegistry.size);
+        }
+      }
+    }
+    if (clickRescanTimer) clearTimeout(clickRescanTimer);
+    clickRescanTimer = setTimeout(() => {
+      checkAndAutoRescan();
+      debouncedAutoPageScan();
+    }, 180);
+  }, true);
+
+  // MutationObserver on document.body for reactive pane updates
+  let paneObserverTimeout = null;
+  const bodyObserver = new MutationObserver(() => {
+    if (paneObserverTimeout) clearTimeout(paneObserverTimeout);
+    paneObserverTimeout = setTimeout(() => {
+      checkAndAutoRescan();
+      debouncedAutoPageScan();
+    }, 250);
+  });
+
+  if (document.body) {
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // Heartbeat fallback (faster frequency for responsive scanning)
+  setInterval(() => {
+    try {
+      checkAndAutoRescan();
+    } catch (e) {
+      console.warn('[SuperJobGenie] Heartbeat error:', e);
+    }
+  }, 500);
+
+  // Expose evaluation engine on window for diagnostics and testing
+  window.__SUPER_JOB_GENIE_EVALUATE__ = evaluateJobMatch;
+  window.__SUPER_JOB_GENIE_DOMAINS__ = INDUSTRY_DOMAINS;
+  window.__SUPER_JOB_GENIE_BILINGUAL_MAP__ = BILINGUAL_TECH_MAP;
+
+})();
