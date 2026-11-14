@@ -60,8 +60,14 @@ Open any job posting, click the genie icon, and get everything you need in secon
 • Skill Gap Roadmap
   A clear list of the skills and keywords you're missing, plus how to close each gap before you hit submit.
 
-• Tailored Cover Letter
-  A ready-to-send, four-paragraph letter written for that specific role and company. Executive tone, no generic filler. Edit and send.
+• Tailored Cover Letter Studio (4 Modes)
+  Multi-industry Cover Letters (Standard, Executive Brief, Concise Recruiter DM, and Traditional Chinese for 104/CakeResume) that pull quantified achievements directly from your resume—zero generic placeholders.
+
+• Autonomous Scout Bot & Bulk Page Scanner
+  Turn on Auto Cruise while browsing Indeed, LinkedIn, or 104. The Scout Bot scores every visible job card on the page with match badges so you skip low-fit roles in seconds.
+
+• 1-Click CSV & Notion / Obsidian Table Export
+  Export all scanned high-match jobs into a clean Excel/Sheets CSV or copy a formatted Markdown table straight into Notion or Obsidian to run your entire job hunt pipeline.
 
 • Cross-Role Smart Match
   Your skills often fit roles you'd never think to search for. Smart Match surfaces adjacent openings where your experience is already a strong fit — so your search stops being one narrow lane.
@@ -69,11 +75,10 @@ Open any job posting, click the genie icon, and get everything you need in secon
 • Culture & Team Signals
   Spot work-pace cues, growth signals, and vague hiring language before you invest an hour in an application.
 
-• Interview Talking Points
-  Targeted questions and angles pulled from the posting, so you walk in prepared for what they'll actually ask.
-
 • 100% Local Privacy
-  Runs entirely in your browser sandbox. Your resume and candidate profile are never uploaded to any remote server or sold to third parties.
+  Runs entirely in your browser sandbox. Your resume and candidate profile stay local inside Chrome storage.
+
+Search Keywords: auto job scanner, bulk job matcher, job tracker csv export, notion job table, ats resume matcher, tailored cover letter generator, 104 求職信.
 
 ★ WHERE IT WORKS
 

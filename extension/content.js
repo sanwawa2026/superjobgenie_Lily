@@ -19,6 +19,8 @@
   // Candidate Profile State (Default starts neutral/fresh, hydrated from storage)
   let candidateProfile = {
     name: 'Candidate Profile',
+    email: '',
+    portfolioUrl: '',
     title: 'Senior Software Engineer & Systems Architect',
     targetRole: 'Senior Software Engineer / Tech Lead',
     yearsOfExperience: 10,
@@ -63,6 +65,10 @@
   let isCandidateExpanded = false;
   let isBuggyMode = false;
   let isEditCandidateOpen = false;
+  let isCoverLetterDrawerOpen = false;
+  let selectedCoverLetterMode = 'standard'; // 'standard' | 'executive' | 'concise' | 'zh_tw'
+  let coverLetterDraftOverride = '';
+  let lastGeneratedLetterJobKey = '';
   let shadowRoot = null;
   let hostContainer = null;
   let fireworkParticles = [];
@@ -3231,6 +3237,7 @@
       md += `| ${idx + 1} | **${l.score}%** | ${cleanTitle} | ${cleanComp} | ${freshStr} | ${skillsStr} | ${linkStr} |\n`;
     });
 
+    md += `\n> ⚡ Auto-scored 100% locally by **SuperJobGenie Scout Bot** (Chrome Web Store)\n`;
     navigator.clipboard.writeText(md);
   }
 
@@ -3293,6 +3300,21 @@
           scannedAt: Date.now()
         });
         scannedCardsCount = Math.max(scannedCardsCount, scannedLeadsRegistry.size);
+
+        if (evaluation.overallMatchScore >= 80 && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+          try {
+            chrome.runtime.sendMessage({
+              action: 'save_high_match_lead',
+              lead: {
+                title: cleanT,
+                company: cleanC,
+                score: evaluation.overallMatchScore,
+                url: finalUrl,
+                savedAt: Date.now()
+              }
+            });
+          } catch (e) {}
+        }
       }
 
       let wrapper = sRoot.querySelector('#sjg-shadow-wrapper');
@@ -3587,15 +3609,33 @@
 
             <!-- Tailored Application Options -->
             <div class="sjg-cover-letter-options" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #1e293b;">
-              <div style="color: #94a3b8; font-size: 10.5px; margin-bottom: 5px; text-transform: uppercase; font-weight:700;">Generate Tailored Application</div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <span style="color: #94a3b8; font-size: 10.5px; text-transform: uppercase; font-weight:700;">Tailored Cover Letter Studio</span>
+                <button id="sjg-cl-toggle-drawer" style="background:none; border:none; color:#38bdf8; font-size:10px; font-weight:700; cursor:pointer; padding:0;">${isCoverLetterDrawerOpen ? 'Hide Preview ▲' : 'Edit / Preview ▼'}</button>
+              </div>
               <div class="sjg-buttons-row">
                 <button id="sjg-cl-free-btn" class="sjg-btn-letter">
-                  ✉️ 3-Tier Professional
+                  ✉️ 3-Tier Copy
                 </button>
                 <button id="sjg-cl-pro-btn" class="sjg-btn-faang">
                   👑 4-Tier Executive
                 </button>
               </div>
+              ${isCoverLetterDrawerOpen ? `
+                <div style="margin-top:8px; padding:8px; background:#0b1120; border:1px solid #334155; border-radius:8px;">
+                  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
+                    <button class="sjg-cl-mode-btn" data-mode="standard" style="flex:1; padding:4px 6px; font-size:10px; font-weight:700; border-radius:5px; cursor:pointer; border:1px solid ${selectedCoverLetterMode === 'standard' ? '#6366f1' : '#334155'}; background:${selectedCoverLetterMode === 'standard' ? '#312e81' : '#0f172a'}; color:#e2e8f0;">3-Tier</button>
+                    <button class="sjg-cl-mode-btn" data-mode="executive" style="flex:1; padding:4px 6px; font-size:10px; font-weight:700; border-radius:5px; cursor:pointer; border:1px solid ${selectedCoverLetterMode === 'executive' ? '#a855f7' : '#334155'}; background:${selectedCoverLetterMode === 'executive' ? '#581c87' : '#0f172a'}; color:#f3e8ff;">4-Tier Exec</button>
+                    <button class="sjg-cl-mode-btn" data-mode="concise" style="flex:1; padding:4px 6px; font-size:10px; font-weight:700; border-radius:5px; cursor:pointer; border:1px solid ${selectedCoverLetterMode === 'concise' ? '#06b6d4' : '#334155'}; background:${selectedCoverLetterMode === 'concise' ? '#164e63' : '#0f172a'}; color:#cffafe;">Short DM</button>
+                    <button class="sjg-cl-mode-btn" data-mode="zh_tw" style="flex:1; padding:4px 6px; font-size:10px; font-weight:700; border-radius:5px; cursor:pointer; border:1px solid ${selectedCoverLetterMode === 'zh_tw' ? '#10b981' : '#334155'}; background:${selectedCoverLetterMode === 'zh_tw' ? '#064e3b' : '#0f172a'}; color:#d1fae5;">繁體104</button>
+                  </div>
+                  <textarea id="sjg-cl-preview-textarea" rows="8" style="width:100%; box-sizing:border-box; padding:7px; background:#020617; color:#e2e8f0; border:1px solid #1e293b; border-radius:6px; font-size:10.5px; line-height:1.45; font-family:inherit; resize:vertical;">${escapeHtml(coverLetterDraftOverride)}</textarea>
+                  <div style="display:flex; gap:6px; margin-top:6px;">
+                    <button id="sjg-cl-copy-preview-btn" style="flex:1; padding:5px 8px; border-radius:6px; background:#059669; color:#fff; font-size:10.5px; font-weight:800; border:none; cursor:pointer;">📋 Copy Active Draft</button>
+                    <button id="sjg-cl-open-ai-polish-btn" style="flex:1; padding:5px 8px; border-radius:6px; background:#312e81; color:#e0e7ff; font-size:10.5px; font-weight:700; border:1px solid #4f46e5; cursor:pointer;">✨ AI Polish</button>
+                  </div>
+                </div>
+              ` : ''}
             </div>
 
           </div>
@@ -3606,6 +3646,16 @@
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h4 style="color:#fff; font-size:13px; font-weight:800;">✏️ Edit Candidate Profile</h4>
                 <button id="sjg-cancel-edit-btn" style="background:none; border:none; color:#64748b; font-size:18px; cursor:pointer;">✕</button>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div class="sjg-input-group">
+                  <label>Full Name (for Cover Letter):</label>
+                  <input id="sjg-edit-name" value="${escapeHtml(candidateProfile.name === 'Candidate Profile' ? '' : (candidateProfile.name || ''))}" placeholder="e.g. Alex Chen" />
+                </div>
+                <div class="sjg-input-group">
+                  <label>Email or LinkedIn URL:</label>
+                  <input id="sjg-edit-email" value="${escapeHtml(candidateProfile.email || candidateProfile.portfolioUrl || '')}" placeholder="alex@email.com" />
+                </div>
               </div>
               <div class="sjg-input-group">
                 <label>Job Title / Target Role:</label>
@@ -3621,7 +3671,7 @@
               </div>
               <div class="sjg-input-group">
                 <label>Full Raw Resume / Work Experience Highlights (${candidateProfile.rawResumeText.length} characters):</label>
-                <textarea id="sjg-edit-resume" rows="10" placeholder="Paste full resume text here without any character truncation...">${escapeHtml(candidateProfile.rawResumeText)}</textarea>
+                <textarea id="sjg-edit-resume" rows="8" placeholder="Paste full resume text here without any character truncation...">${escapeHtml(candidateProfile.rawResumeText)}</textarea>
               </div>
               <div class="sjg-edit-actions">
                 <button id="sjg-discard-edit-btn" class="sjg-btn-rescan">Cancel</button>
@@ -3884,6 +3934,8 @@
 
       // Save Full Candidate Profile without truncation
       wrapper.querySelector('#sjg-save-edit-btn')?.addEventListener('click', () => {
+        const newName = (wrapper.querySelector('#sjg-edit-name')?.value || '').trim();
+        const newEmail = (wrapper.querySelector('#sjg-edit-email')?.value || '').trim();
         const newTitle = wrapper.querySelector('#sjg-edit-title')?.value || candidateProfile.title;
         const newExp = parseInt(wrapper.querySelector('#sjg-edit-exp')?.value || '0', 10);
         const newSkills = (wrapper.querySelector('#sjg-edit-skills')?.value || '')
@@ -3892,17 +3944,20 @@
           .filter(Boolean);
         const newResume = wrapper.querySelector('#sjg-edit-resume')?.value || '';
 
+        candidateProfile.name = newName || 'Candidate Profile';
+        candidateProfile.email = newEmail;
         candidateProfile.title = newTitle;
         candidateProfile.yearsOfExperience = newExp;
         candidateProfile.skills = newSkills;
         candidateProfile.rawResumeText = newResume;
         saveProfileToStorage();
+        lastGeneratedLetterJobKey = '';
         isEditCandidateOpen = false;
         renderShadowUI();
       });
 
       // External actions
-      const remoteDashboardUrl = 'https://ais-dev-dpehhkspkblknqvlwnko6m-423633136396.europe-west2.run.app';
+      const remoteDashboardUrl = 'https://ais-dev-ktwblonwqqz4djz5kuuffg-423633136396.europe-west2.run.app';
 
       wrapper.querySelector('#sjg-open-dashboard-btn')?.addEventListener('click', () => {
         try {
@@ -3940,79 +3995,153 @@
         }
       });
 
-      wrapper.querySelector('#sjg-cl-free-btn')?.addEventListener('click', () => {
-        // Ensure we use the full name without ellipsis
+      function buildHudCoverLetter(mode) {
         const topSkills = evaluation.verifiedSkills.length > 0
-          ? evaluation.verifiedSkills.map(s => s.fullName || s.name).map(n => n.replace('…', ''))
+          ? evaluation.verifiedSkills.map(s => s.fullName || s.name).map(n => n.replace('…', '').trim()).filter(Boolean)
           : candidateProfile.skills.slice(0, 4);
+        const skillsDisplay = topSkills.slice(0, 4).join(', ') || 'Core Domain Execution';
 
-        // Robustly detect UK location and job source
         const url = window.location.href.toLowerCase();
         const locationText = (job.location || '').toLowerCase();
-        const isUK = locationText.includes('uk') || locationText.includes('england') || 
-                     locationText.includes('london') || locationText.includes('cambridge') || 
-                     locationText.includes('edinburgh') || url.includes('.co.uk');
+        const isUK = locationText.includes('uk') || locationText.includes('england') ||
+          locationText.includes('london') || locationText.includes('cambridge') ||
+          locationText.includes('edinburgh') || url.includes('.co.uk');
+        const specialised = isUK ? 'specialised' : 'specialized';
 
         let jobSource = '';
-        let portfolioLabel = 'Portfolio';
-        if (url.includes('indeed.com')) {
-          jobSource = ' Indeed';
-          portfolioLabel = 'Indeed Profile/Portfolio';
-        } else if (url.includes('linkedin.com')) {
-          jobSource = ' LinkedIn';
-          portfolioLabel = 'LinkedIn Profile';
-        } else if (url.includes('glassdoor')) {
-          jobSource = ' Glassdoor';
-          portfolioLabel = 'Glassdoor Profile';
-        } else if (url.includes('ziprecruiter')) {
-          jobSource = ' ZipRecruiter';
-          portfolioLabel = 'ZipRecruiter Profile';
-        } else if (url.includes('greenhouse.io') || url.includes('lever.co') || url.includes('myworkdayjobs')) {
-          jobSource = ' the company career site';
-          portfolioLabel = 'Professional Portfolio';
+        if (url.includes('indeed')) jobSource = 'Indeed';
+        else if (url.includes('linkedin.com')) jobSource = 'LinkedIn';
+        else if (url.includes('glassdoor')) jobSource = 'Glassdoor';
+        else if (url.includes('104.com.tw')) jobSource = '104 人力銀行';
+        else if (url.includes('cakeresume.com')) jobSource = 'CakeResume';
+        else if (url.includes('greenhouse.io') || url.includes('lever.co') || url.includes('myworkdayjobs')) jobSource = 'the company career portal';
+
+        const cleanCompany = (job.company || 'Hiring Team').replace(/\s?\d+(\.\d+)?★?$/, '').replace(/\s*\|\s*.*$/, '').trim() || 'Hiring Team';
+        const jobTitleClean = (job.title || 'Target Role').replace(/\s+-\s+job post$/i, '').trim();
+        const yoe = candidateProfile.yearsOfExperience || 10;
+        const candTitle = candidateProfile.title || 'Senior Specialist';
+        const hasRealName = candidateProfile.name && !candidateProfile.name.includes('PII Scrubbed') && candidateProfile.name !== 'Candidate Profile';
+        const signOffName = hasRealName ? candidateProfile.name : candTitle;
+        const contactLine = [hasRealName ? candidateProfile.name : '', candidateProfile.email || '', candidateProfile.portfolioUrl || ''].filter(Boolean).join('  •  ');
+
+        const haystack = `${jobTitleClean} ${(job.fullBodyText || '').slice(0, 1200)} ${candTitle}`.toLowerCase();
+        let domainOpening = `delivering measurable operational execution and cross-functional results across ${skillsDisplay}`;
+        if (/(acquisitions|underwriting|dcf|lbo|real estate|m&a|investment)/i.test(haystack)) {
+          domainOpening = `building institutional DCF/LBO underwriting models and executing rigorous due diligence across ${skillsDisplay}`;
+        } else if (/(civil engineer|structural|architect|autocad|revit|\bbim\b|construction)/i.test(haystack)) {
+          domainOpening = `delivering code-compliant BIM/CAD engineering packages and constructability coordination across ${skillsDisplay}`;
+        } else if (/(product analyst|data analyst|ai trainer|quantitative|analytics|a\/b test)/i.test(haystack)) {
+          domainOpening = `turning complex datasets into clear product and quantitative decisions across ${skillsDisplay}`;
+        } else if (/(software|frontend|backend|full[\s-]?stack|engineer|developer|devops|react|java|python|kubernetes)/i.test(haystack)) {
+          domainOpening = `architecting reliable production systems and shipping scalable software across ${skillsDisplay}`;
         }
-        
-        // Dynamic spelling
-        const specialised = isUK ? 'specialised' : 'specialized';
-        
-        // Clean company name: remove stray ratings like "4.1" or "4.1★"
-        const cleanCompany = (job.company || 'your organization').replace(/\s?\d+(\.\d+)?★?$/, '');
-        
-        const candidateDisplayName = (candidateProfile.name && !candidateProfile.name.includes('PII Scrubbed') && candidateProfile.name !== 'Candidate Profile') 
-          ? candidateProfile.name 
-          : '[Your Name]';
 
-        const cl = `[Your Name]
-[Your Phone Number]  •  [Your Email]  •  [Your ${portfolioLabel} URL]
+        const resumeLines = (candidateProfile.rawResumeText || '')
+          .split(/[\n\r]+/)
+          .map(l => l.replace(/^[\s•\-*▪◦\d.)]+/, '').trim())
+          .filter(l => l.length >= 24 && l.length <= 220 && /(\d+(?:\.\d+)?%|\$[\d,.]+[MBKmk]?|\b\d{2,}\+|\b\d+x\b|99\.\d+%|DAU|RPS|ROI)/i.test(l));
+        const metricBullet1 = resumeLines[0] ? `• Measurable Impact: ${resumeLines[0].replace(/[.。]+$/, '')}.` : `• Core Mastery (${topSkills[0] || 'Execution'}): ${yoe}+ years delivering production-grade outcomes under tight timelines.`;
+        const metricBullet2 = resumeLines[1] ? `• Proven Execution: ${resumeLines[1].replace(/[.。]+$/, '')}.` : `• Direct Alignment (${topSkills[1] || 'Analysis'}): Hands-on track record turning complex requirements into repeatable, verifiable results.`;
 
-Dear Hiring Team at ${cleanCompany},
+        if (mode === 'zh_tw') {
+          return `${contactLine ? contactLine + '\n\n' : ''}${cleanCompany} 招募團隊 您好：\n\n誠摯應徵貴公司${jobSource ? `於 ${jobSource} 刊登的` : ''}「${jobTitleClean}」一職。本人具備 ${yoe} 年以上實務經驗（定位：${candTitle}），核心能力涵蓋 ${skillsDisplay}，經系統比對與此職缺核心要求高度契合（匹配度 ${evaluation.overallMatchScore}%）。\n\n與貴團隊職缺最直接對應的履歷實績：\n${resumeLines[0] ? `• 具體量化成果：${resumeLines[0]}` : `• 核心領域深耕：長期負責 ${topSkills.slice(0, 2).join('、')} 實戰落地，能於報到後迅速推進核心專案。`}\n• 跨團隊協作推進：擅長將模糊需求拆解為可量化里程碑並維持高交付品質。\n\n若有機會進一步面談，非常期待能向貴團隊分享過往實戰成果與具體解決方案。感謝撥冗審閱！\n\n敬祝 順心\n${signOffName} 敬上`;
+        }
 
-I am writing to express my strong enthusiasm for the ${job.title || 'engineering'} position${jobSource ? `, which I discovered through${jobSource}` : ''}. Having tracked ${cleanCompany}'s technical innovations, I am eager to contribute my background in architecting scalable systems and resilient software infrastructure to your initiatives.
+        if (mode === 'concise') {
+          return `Hi ${cleanCompany} Hiring Team,\n\nI noticed the ${jobTitleClean} opening${jobSource ? ` on ${jobSource}` : ''} and wanted to reach out directly. Across ${yoe}+ years as a ${candTitle}, I have ${specialised} in ${skillsDisplay}${resumeLines[0] ? ` — notably: ${resumeLines[0].replace(/[.。]+$/, '')}` : ''}.\n\nMy verified background maps cleanly onto your core requirements (${topSkills.slice(0, 3).join(', ')}). Happy to share relevant work samples or connect for a brief intro call this week.\n\nBest regards,\n${signOffName}`;
+        }
 
-With over ${candidateProfile.yearsOfExperience || 10} years of hands-on engineering experience, I bring deep domain mastery aligned directly with your core technical requirements:
-• ${topSkills[0] || 'High-performance backend systems & microservices'}
-• ${topSkills[1] || 'Distributed architecture, data modeling & low-latency execution'}
-• ${topSkills[2] || 'End-to-end testing, CI/CD automation & resilient cloud operations'}
-${topSkills[3] ? `• ${topSkills[3]}` : ''}
+        if (mode === 'executive') {
+          return `EXECUTIVE APPLICATION BRIEF: ${jobTitleClean.toUpperCase()}\nTarget Organization: ${cleanCompany.toUpperCase()}\nCandidate: ${signOffName} (${candTitle} • ${yoe}+ Years Experience | Match: ${evaluation.overallMatchScore}%)${contactLine ? `\nContact: ${contactLine}` : ''}\n\n1. DAY-ONE VALUE PROPOSITION\nTeams at ${cleanCompany} hiring for ${jobTitleClean} need accountable, zero-fluff execution. With ${yoe}+ years ${domainOpening}, I step in ready to own end-to-end deliverables from week one.\n\n2. QUANTIFIED EVIDENCE & ALIGNMENT\n${metricBullet1}\n${metricBullet2}\n${topSkills[2] ? `• Verified Tooling Breadth: ${topSkills.slice(2, 4).join(' & ')}.` : ''}\n\n3. NEXT STEP\nI welcome a focused technical or case-study discussion to review relevant work artifacts and measurable results for ${cleanCompany}.\n\nRespectfully submitted,\n${signOffName}`;
+        }
 
-Throughout my career, I have ${specialised} in turning ambiguous product goals into robust, maintainable technical reality while championing clean code and team mentoring. I am particularly excited about ${job.company || 'your team'}'s scale and look forward to discussing how my experience can deliver immediate impact.
+        return `${contactLine ? contactLine + '\n\n' : ''}Dear ${cleanCompany} Hiring Team,\n\nI am applying for the ${jobTitleClean} position${jobSource ? ` discovered via ${jobSource}` : ''}. With over ${yoe} years of hands-on experience ${domainOpening}, I bring immediate readiness across your highest-priority requirements.\n\nHighlights directly aligned with ${cleanCompany}'s ${jobTitleClean} mandate:\n${metricBullet1}\n${metricBullet2}\n${topSkills[2] ? `• Domain & Tooling: ${topSkills.slice(2, 4).join(', ')}` : ''}\n\nThroughout my career, I have ${specialised} in translating ambiguous business goals into reliable, measurable outcomes. I look forward to discussing how I can contribute immediate impact to ${cleanCompany}.\n\nSincerely,\n${signOffName}${hasRealName ? `\n${candTitle}` : ''}`;
+      }
 
-Thank you for your time and consideration.
+      const activeLetterJobKey = `${job.title || ''}::${job.company || ''}::${selectedCoverLetterMode}::${candidateProfile.name || ''}::${(candidateProfile.rawResumeText || '').length}`;
+      if (isCoverLetterDrawerOpen && lastGeneratedLetterJobKey !== activeLetterJobKey) {
+        lastGeneratedLetterJobKey = activeLetterJobKey;
+        coverLetterDraftOverride = buildHudCoverLetter(selectedCoverLetterMode);
+        const ta = wrapper.querySelector('#sjg-cl-preview-textarea');
+        if (ta) ta.value = coverLetterDraftOverride;
+      }
 
-Sincerely,
+      wrapper.querySelector('#sjg-cl-toggle-drawer')?.addEventListener('click', () => {
+        isCoverLetterDrawerOpen = !isCoverLetterDrawerOpen;
+        if (isCoverLetterDrawerOpen) {
+          coverLetterDraftOverride = buildHudCoverLetter(selectedCoverLetterMode);
+          lastGeneratedLetterJobKey = activeLetterJobKey;
+        }
+        renderShadowUI();
+      });
 
-${candidateDisplayName}`;
+      wrapper.querySelectorAll('.sjg-cl-mode-btn')?.forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedCoverLetterMode = btn.getAttribute('data-mode') || 'standard';
+          coverLetterDraftOverride = buildHudCoverLetter(selectedCoverLetterMode);
+          lastGeneratedLetterJobKey = `${job.title || ''}::${job.company || ''}::${selectedCoverLetterMode}::${candidateProfile.name || ''}::${(candidateProfile.rawResumeText || '').length}`;
+          renderShadowUI();
+        });
+      });
 
+      wrapper.querySelector('#sjg-cl-preview-textarea')?.addEventListener('input', (e) => {
+        coverLetterDraftOverride = e.target.value;
+      });
+
+      wrapper.querySelector('#sjg-cl-copy-preview-btn')?.addEventListener('click', () => {
+        const textToCopy = wrapper.querySelector('#sjg-cl-preview-textarea')?.value || buildHudCoverLetter(selectedCoverLetterMode);
+        navigator.clipboard.writeText(textToCopy);
+        const btn = wrapper.querySelector('#sjg-cl-copy-preview-btn');
+        if (btn) {
+          btn.innerText = '✅ Copied to Clipboard!';
+          setTimeout(() => { btn.innerText = '📋 Copy Active Draft'; }, 1800);
+        }
+      });
+
+      wrapper.querySelector('#sjg-cl-open-ai-polish-btn')?.addEventListener('click', () => {
+        try {
+          const url = new URL(remoteDashboardUrl);
+          url.searchParams.set('tab', 'coverletter');
+          if (job?.title && !job.title.startsWith('Select a Job')) {
+            url.searchParams.set('title', job.title);
+            url.searchParams.set('company', (job.company || '').replace(/\s?\d+(\.\d+)?★?$/, '').trim());
+            url.searchParams.set('score', evaluation.overallMatchScore.toString());
+            url.searchParams.set('tier', evaluation.matchTier);
+          }
+          window.open(url.toString(), '_blank');
+        } catch (e) {
+          window.open(`${remoteDashboardUrl}?tab=coverletter`, '_blank');
+        }
+      });
+
+      wrapper.querySelector('#sjg-cl-free-btn')?.addEventListener('click', () => {
+        selectedCoverLetterMode = (window.location.hostname.includes('104.com.tw') || window.location.hostname.includes('cakeresume.com')) ? 'zh_tw' : 'standard';
+        const cl = buildHudCoverLetter(selectedCoverLetterMode);
+        coverLetterDraftOverride = cl;
+        isCoverLetterDrawerOpen = true;
+        lastGeneratedLetterJobKey = `${job.title || ''}::${job.company || ''}::${selectedCoverLetterMode}::${candidateProfile.name || ''}::${(candidateProfile.rawResumeText || '').length}`;
         navigator.clipboard.writeText(cl);
+        renderShadowUI();
         const btn = wrapper.querySelector('#sjg-cl-free-btn');
         if (btn) {
           btn.innerText = '✅ Copied!';
-          setTimeout(() => { btn.innerText = '✉️ 3-Tier Professional'; }, 2000);
+          setTimeout(() => { btn.innerText = '✉️ 3-Tier Copy'; }, 2000);
         }
       });
 
       wrapper.querySelector('#sjg-cl-pro-btn')?.addEventListener('click', () => {
-        window.open(`${remoteDashboardUrl}?tab=coverletter`, '_blank');
+        selectedCoverLetterMode = 'executive';
+        const cl = buildHudCoverLetter('executive');
+        coverLetterDraftOverride = cl;
+        isCoverLetterDrawerOpen = true;
+        lastGeneratedLetterJobKey = `${job.title || ''}::${job.company || ''}::executive::${candidateProfile.name || ''}::${(candidateProfile.rawResumeText || '').length}`;
+        navigator.clipboard.writeText(cl);
+        renderShadowUI();
+        const btn = wrapper.querySelector('#sjg-cl-pro-btn');
+        if (btn) {
+          btn.innerText = '✅ Exec Copied!';
+          setTimeout(() => { btn.innerText = '👑 4-Tier Executive'; }, 2000);
+        }
       });
 
       // Fireworks celebration for >= 90% top-tier matches

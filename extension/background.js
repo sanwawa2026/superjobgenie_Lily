@@ -1,20 +1,31 @@
 /**
- * SuperJobGenie Background Service Worker (Manifest V3)
- * Includes V2.0 Autonomous Scout Radar, chrome.alarms scheduler, and real-time alerts
+ * SuperJobGenie Background Service Worker (Manifest V3 - v5.1.0)
+ * Includes Autonomous Scout Radar, chrome.alarms scheduler, and real-lead notifications
  */
 
 const ALARM_NAME = 'sjg_autonomous_radar';
+const DASHBOARD_BASE_URL = 'https://ais-dev-ktwblonwqqz4djz5kuuffg-423633136396.europe-west2.run.app';
 
 // Initialize defaults on install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[SuperJobGenie] Extension installed successfully.');
+  console.log('[SuperJobGenie v5.1.0] Extension installed successfully.');
   chrome.storage.local.get(['sjgSettings', 'radarConfig'], (res) => {
     if (!res.sjgSettings) {
       chrome.storage.local.set({
         sjgSettings: {
           enableDeepExtract: true,
           autoShowHud: true,
-          backendApiUrl: 'https://ais-dev-dpehhkspkblknqvlwnko6m-423633136396.europe-west2.run.app'
+          backendApiUrl: DASHBOARD_BASE_URL
+        }
+      });
+    } else if (
+      res.sjgSettings.backendApiUrl &&
+      res.sjgSettings.backendApiUrl.includes('dpehhkspkblknqvlwnko6m')
+    ) {
+      chrome.storage.local.set({
+        sjgSettings: {
+          ...res.sjgSettings,
+          backendApiUrl: DASHBOARD_BASE_URL
         }
       });
     }
@@ -24,16 +35,13 @@ chrome.runtime.onInstalled.addListener(() => {
         radarConfig: {
           enabled: true,
           targetRole: 'Full Stack Engineer / Tech Lead',
-          targetLocations: 'Singapore, Taiwan, Remote',
-          minScore: 85,
+          targetLocations: 'US, UK, Taiwan, Singapore, Remote',
+          minScore: 80,
           intervalMinutes: 60,
-          desktopNotifications: true,
-          telegramEnabled: false,
-          telegramChatId: ''
+          desktopNotifications: true
         }
       });
 
-      // Default alarm: check every 60 minutes
       chrome.alarms.create(ALARM_NAME, {
         delayInMinutes: 1,
         periodInMinutes: 60
@@ -42,18 +50,19 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Periodic Scout Radar via chrome.alarms
+// Periodic Scout Radar via chrome.alarms — uses real scanned leads when present
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
-    chrome.storage.local.get(['radarConfig'], (res) => {
+    chrome.storage.local.get(['radarConfig', 'sjg_latest_high_match_lead'], (res) => {
       const config = res.radarConfig;
-      if (config && config.enabled) {
-        console.log('[SuperJobGenie Radar] Scanning job stream for:', config.targetRole);
-        // Dispatch test radar notification
-        if (config.desktopNotifications) {
+      const latestLead = res.sjg_latest_high_match_lead;
+      if (config && config.enabled && config.desktopNotifications && latestLead && latestLead.title) {
+        const minScore = Number(config.minScore || 80);
+        if (Number(latestLead.score || 0) >= minScore) {
           showScoutNotification({
-            title: '🎯 High-Match Job Detected (94%)',
-            message: `SeaMoney (Shopee FinTech) - Senior Backend Engineer matches your skills. Tap to view 4-Tier Pitch.`
+            title: `🎯 ${latestLead.score}% High-Match Lead Saved`,
+            message: `${latestLead.company || 'Employer'} — ${latestLead.title}. Click to open Cover Letter & Pivot Studio.`,
+            targetUrl: latestLead.url
           });
         }
       }
@@ -62,16 +71,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // Notification Dispatch Helper
-function showScoutNotification({ title, message, url }) {
+function showScoutNotification({ title, message, targetUrl }) {
   if (!chrome.notifications) return;
-  
+
   const notificationId = 'sjg_scout_' + Date.now();
+  chrome.storage.local.set({ [`sjg_notif_url_${notificationId}`]: targetUrl || DASHBOARD_BASE_URL });
   chrome.notifications.create(notificationId, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
     title: `[SuperJobGenie] ${title}`,
     message: message,
-    contextMessage: 'V2.0 Autonomous Scout Radar',
+    contextMessage: 'Autonomous Scout Bot',
     priority: 2
   });
 }
@@ -79,20 +89,40 @@ function showScoutNotification({ title, message, url }) {
 // Notification Click Handler
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (notificationId.startsWith('sjg_scout_')) {
-    chrome.tabs.create({
-      url: 'https://ais-dev-dpehhkspkblknqvlwnko6m-423633136396.europe-west2.run.app'
+    const key = `sjg_notif_url_${notificationId}`;
+    chrome.storage.local.get([key], (res) => {
+      const dest = res[key] || DASHBOARD_BASE_URL;
+      chrome.tabs.create({ url: dest });
+      chrome.storage.local.remove([key]);
     });
   }
 });
 
 // Message Bridge from Popup / Content Scripts
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  if (request.action === 'save_high_match_lead' && request.lead) {
+    chrome.storage.local.set({ sjg_latest_high_match_lead: request.lead });
+    sendResponse({ success: true });
+    return true;
+  }
+
   if (request.action === 'trigger_radar_test') {
-    showScoutNotification({
-      title: '🎯 Radar Test Ping: 96% Match Found!',
-      message: `${request.role || 'Senior Full-Stack Engineer'} at ${request.company || 'Tech Global'} matches your transferable skills!`
+    chrome.storage.local.get(['sjg_latest_high_match_lead'], (res) => {
+      const realLead = res.sjg_latest_high_match_lead;
+      const title = realLead?.title
+        ? `🎯 ${realLead.score || 90}% Match Ready: ${realLead.title}`
+        : `🎯 Radar Alert Ready (${request.role || 'Target Role'})`;
+      const message = realLead?.title
+        ? `${realLead.company || 'Target Employer'} — Open Scout Bot to export CSV/Notion table or copy Cover Letter.`
+        : `Browse Indeed, LinkedIn, 104, or Workday and click Scan Page Jobs to capture real matches.`;
+
+      showScoutNotification({
+        title,
+        message,
+        targetUrl: realLead?.url || DASHBOARD_BASE_URL
+      });
+      sendResponse({ success: true, hasRealLead: Boolean(realLead?.title), timestamp: Date.now() });
     });
-    sendResponse({ success: true, timestamp: Date.now() });
     return true;
   }
 

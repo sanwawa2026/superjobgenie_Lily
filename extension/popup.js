@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Open Web Dashboard
   if (openLocalDashboardBtn) {
     openLocalDashboardBtn.addEventListener('click', () => {
-      const dashboardUrl = 'https://ais-dev-dpehhkspkblknqvlwnko6m-423633136396.europe-west2.run.app';
+      const dashboardUrl = 'https://ais-dev-ktwblonwqqz4djz5kuuffg-423633136396.europe-west2.run.app';
       chrome.tabs.create({ url: dashboardUrl });
     });
   }

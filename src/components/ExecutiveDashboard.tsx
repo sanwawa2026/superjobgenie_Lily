@@ -48,19 +48,98 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onToggleBuggyMode,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [letterStyleMode, setLetterStyleMode] = useState<'dual' | 'concise' | 'zh_tw'>('dual');
+  const [aiRefinedLetters, setAiRefinedLetters] = useState<{
+    tier3Free: string;
+    tier4Pro: string;
+    concisePitch: string;
+    zhTwLetter: string;
+  } | null>(null);
+  const [editedDrafts, setEditedDrafts] = useState<Record<string, string>>({});
+  const [isRefiningLetter, setIsRefiningLetter] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
 
-  // 军师核心保障：确保工作看板求职信与当前插件实际检测到的公司与职位 100% 实时同步
-  const activeLetters = React.useMemo(() => {
+  // 军师核心保障：确保工作看板求职信与当前插件实际检测到的公司、职位、真实战绩 100% 实时同步
+  const baseLetters = React.useMemo(() => {
+    const generated = generateSynchronizedCoverLetters(jobData, matchResult, candidate);
     const rawTier3 = matchResult?.coverLetters?.tier3Free || '';
-    // 如果已有封面信已经包含了当前公司名称，且没有误带 Stripe 残留（除非实际职位就是 Stripe）
-    if (
+    const hasCustomSyncedApiLetter =
+      rawTier3.length > 140 &&
       rawTier3.includes(jobData.company) &&
-      (!rawTier3.includes('Stripe') || jobData.company.toLowerCase().includes('stripe'))
-    ) {
-      return matchResult.coverLetters;
+      (!rawTier3.includes('Stripe') || jobData.company.toLowerCase().includes('stripe'));
+
+    if (aiRefinedLetters) {
+      return aiRefinedLetters;
     }
-    return generateSynchronizedCoverLetters(jobData, matchResult, candidate);
-  }, [jobData, matchResult, candidate]);
+    if (hasCustomSyncedApiLetter && matchResult.coverLetters?.tier4Pro?.length > 140) {
+      return {
+        ...generated,
+        tier3Free: matchResult.coverLetters.tier3Free,
+        tier4Pro: matchResult.coverLetters.tier4Pro,
+      };
+    }
+    return generated;
+  }, [jobData, matchResult, candidate, aiRefinedLetters]);
+
+  const activeLetters = {
+    tier3Free: editedDrafts.tier3Free ?? baseLetters.tier3Free,
+    tier4Pro: editedDrafts.tier4Pro ?? baseLetters.tier4Pro,
+    concisePitch: editedDrafts.concisePitch ?? baseLetters.concisePitch,
+    zhTwLetter: editedDrafts.zhTwLetter ?? baseLetters.zhTwLetter,
+  };
+
+  React.useEffect(() => {
+    setAiRefinedLetters(null);
+    setEditedDrafts({});
+    setRefineError(null);
+  }, [jobData.title, jobData.company, candidate.rawResumeText]);
+
+  const handleAiRefineCoverLetter = async () => {
+    setIsRefiningLetter(true);
+    setRefineError(null);
+    try {
+      const resp = await fetch('/api/refine-cover-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: jobData.title,
+          company: jobData.company,
+          location: jobData.location,
+          jobDescription: jobData.fullBodyText,
+          resumeText: candidate.rawResumeText,
+          candidateName: candidate.name,
+          candidateTitle: candidate.title,
+          yearsOfExperience: candidate.yearsOfExperience,
+          verifiedSkills: (matchResult.verifiedSkills || []).map((s) => s.name),
+          tone: letterStyleMode === 'concise' ? 'concise' : letterStyleMode === 'zh_tw' ? 'zh_tw' : 'standard',
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || !json.success || !json.data) {
+        throw new Error(json.error || 'AI refinement unavailable');
+      }
+      setAiRefinedLetters(json.data);
+      setEditedDrafts({});
+      TelemetryManager.track('cover_letter_generated', { company: jobData.company, mode: letterStyleMode, refinedBy: 'gemini-4-hydrogen' });
+    } catch (err: any) {
+      setRefineError(err?.message || 'AI refinement unavailable (local smart engine remains active)');
+    } finally {
+      setIsRefiningLetter(false);
+    }
+  };
+
+  const handleDownloadLetter = (content: string, suffix: string) => {
+    const cleanComp = (jobData.company || 'Company').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]+/g, '_');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CoverLetter_${cleanComp}_${suffix}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (!isOpen) return null;
 
@@ -141,7 +220,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="px-6 bg-slate-950/60 border-b border-slate-800 flex space-x-1 overflow-x-auto scrollbar-none">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id || (activeTab === 'cover-letter' && item.id === 'letters') || (activeTab === 'cover-letter-pro' && item.id === 'letters');
+            const isActive =
+              activeTab === item.id ||
+              ((activeTab === 'cover-letter' || activeTab === 'cover-letter-pro' || activeTab === 'coverletter') && item.id === 'letters');
             return (
               <button
                 key={item.id}
@@ -597,78 +678,204 @@ const fullText = Array.from(container.querySelectorAll('p, li, h1, h2, h3, div')
           )}
 
           {/* TAB 5: COVER LETTERS */}
-          {(activeTab === 'letters' || activeTab === 'cover-letter' || activeTab === 'cover-letter-pro') && (
+          {(activeTab === 'letters' || activeTab === 'cover-letter' || activeTab === 'cover-letter-pro' || activeTab === 'coverletter') && (
             <div className="space-y-4">
-              {/* Live Target Synchronization Status Banner */}
-              <div className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
+              {/* Live Target Synchronization Status Banner + Tone & AI Controls */}
+              <div className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-slate-400 font-medium">100% Live Sync with HUD Plugin Target:</span>
+                  <span className="text-slate-400 font-medium">100% Live Sync:</span>
                   <strong className="text-white font-bold">{jobData.title}</strong>
                   <span className="text-slate-500">•</span>
                   <span className="text-cyan-300 font-semibold">🏢 {jobData.company}</span>
                   <span className="text-slate-500">•</span>
                   <span className="text-slate-400">{jobData.location || 'On-site / Hybrid'}</span>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-mono">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Synchronized</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex rounded-lg bg-slate-950 border border-slate-800 p-0.5 text-[11px]">
+                    <button
+                      onClick={() => setLetterStyleMode('dual')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        letterStyleMode === 'dual' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Standard + Executive
+                    </button>
+                    <button
+                      onClick={() => setLetterStyleMode('concise')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        letterStyleMode === 'concise' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Recruiter DM (Short)
+                    </button>
+                    <button
+                      onClick={() => setLetterStyleMode('zh_tw')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        letterStyleMode === 'zh_tw' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      繁體中文 (104/Cake)
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleAiRefineCoverLetter}
+                    disabled={isRefiningLetter}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-[11px] shadow-md disabled:opacity-60 transition"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isRefiningLetter ? 'animate-spin' : ''}`} />
+                    <span>{isRefiningLetter ? 'AI Polishing...' : 'AI Deep Polish'}</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 3-Tier Standard */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-indigo-400" />
-                        3-Tier Standard Letter (Professional Baseline)
-                      </span>
+              {refineError && (
+                <div className="px-3 py-2 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between">
+                  <span>{refineError}</span>
+                  <button onClick={() => setRefineError(null)} className="text-amber-400 hover:text-white">✕</button>
+                </div>
+              )}
+
+              {letterStyleMode === 'dual' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 3-Tier Standard */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-indigo-400" />
+                          3-Tier Standard (Quantified Evidence)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleDownloadLetter(activeLetters.tier3Free, 'Standard')}
+                            className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-white bg-slate-800 px-2 py-1 rounded transition"
+                            title="Download .txt"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>.TXT</span>
+                          </button>
+                          <button
+                            onClick={() => handleCopy(activeLetters.tier3Free, 'letter-free')}
+                            className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-white bg-slate-800 px-2 py-1 rounded transition"
+                          >
+                            {copiedKey === 'letter-free' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedKey === 'letter-free' ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        rows={15}
+                        value={activeLetters.tier3Free}
+                        onChange={(e) => setEditedDrafts((prev) => ({ ...prev, tier3Free: e.target.value }))}
+                        className="w-full p-3 bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg text-slate-200 font-sans text-xs leading-relaxed resize-y focus:outline-none"
+                      />
+                    </div>
+                    <div className="text-[11px] text-slate-400">Editable draft • Auto-pulls quantified resume metrics, domain language, and UK/US spelling.</div>
+                  </div>
+
+                  {/* 4-Tier FAANG Pro */}
+                  <div className="bg-slate-950 border border-purple-500/30 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                          <Crown className="w-4 h-4 text-amber-400" />
+                          4-Tier Executive Brief
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleDownloadLetter(activeLetters.tier4Pro, 'ExecutiveBrief')}
+                            className="flex items-center gap-1 text-[11px] text-amber-200 hover:text-white bg-purple-900/40 border border-purple-500/30 px-2 py-1 rounded transition"
+                            title="Download .txt"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>.TXT</span>
+                          </button>
+                          <button
+                            onClick={() => handleCopy(activeLetters.tier4Pro, 'letter-pro')}
+                            className="flex items-center gap-1 text-[11px] text-amber-200 hover:text-white bg-purple-900/60 border border-purple-500/40 px-2 py-1 rounded transition"
+                          >
+                            {copiedKey === 'letter-pro' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedKey === 'letter-pro' ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        rows={15}
+                        value={activeLetters.tier4Pro}
+                        onChange={(e) => setEditedDrafts((prev) => ({ ...prev, tier4Pro: e.target.value }))}
+                        className="w-full p-3 bg-slate-900 border border-purple-500/20 focus:border-purple-400 rounded-lg text-purple-100 font-sans text-xs leading-relaxed resize-y focus:outline-none"
+                      />
+                    </div>
+                    <div className="text-[11px] text-purple-300/80">Editable strategic brief tailored for Senior, Staff, Lead, and hiring-committee reviews.</div>
+                  </div>
+                </div>
+              ) : letterStyleMode === 'concise' ? (
+                <div className="bg-slate-950 border border-cyan-500/30 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-cyan-300 text-xs flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-cyan-400" />
+                      High-Reply Recruiter DM / Short Application Note (&lt; 160 Words)
+                    </span>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleCopy(activeLetters.tier3Free, 'letter-free')}
+                        onClick={() => handleDownloadLetter(activeLetters.concisePitch, 'ShortPitch')}
                         className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-white bg-slate-800 px-2 py-1 rounded transition"
                       >
-                        {copiedKey === 'letter-free' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        <span>Copy</span>
+                        <Download className="w-3 h-3" />
+                        <span>.TXT</span>
                       </button>
-                    </div>
-                    <textarea
-                      readOnly
-                      rows={14}
-                      value={activeLetters.tier3Free}
-                      className="w-full p-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 font-sans text-xs leading-relaxed resize-none focus:outline-none"
-                    />
-                  </div>
-                  <div className="text-[11px] text-slate-400">Suitable for direct email sending or general application submissions.</div>
-                </div>
-
-                {/* 4-Tier FAANG Pro */}
-                <div className="bg-slate-950 border border-purple-500/30 rounded-xl p-5 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
-                        <Crown className="w-4 h-4 text-amber-400" />
-                        4-Tier FAANG Pro Letter (Executive Architect Narrative)
-                      </span>
                       <button
-                        onClick={() => handleCopy(activeLetters.tier4Pro, 'letter-pro')}
-                        className="flex items-center gap-1 text-[11px] text-amber-200 hover:text-white bg-purple-900/60 border border-purple-500/40 px-2 py-1 rounded transition"
+                        onClick={() => handleCopy(activeLetters.concisePitch, 'letter-concise')}
+                        className="flex items-center gap-1 text-[11px] text-cyan-200 hover:text-white bg-cyan-900/60 border border-cyan-500/40 px-2.5 py-1 rounded transition"
                       >
-                        {copiedKey === 'letter-pro' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        <span>Copy</span>
+                        {copiedKey === 'letter-concise' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedKey === 'letter-concise' ? 'Copied' : 'Copy'}</span>
                       </button>
                     </div>
-                    <textarea
-                      readOnly
-                      rows={14}
-                      value={activeLetters.tier4Pro}
-                      className="w-full p-3 bg-slate-900 border border-purple-500/20 rounded-lg text-purple-100 font-sans text-xs leading-relaxed resize-none focus:outline-none"
-                    />
                   </div>
-                  <div className="text-[11px] text-purple-300/80">Highlights defensive engineering, edge concurrency, and rigorous code verification.</div>
+                  <textarea
+                    rows={12}
+                    value={activeLetters.concisePitch}
+                    onChange={(e) => setEditedDrafts((prev) => ({ ...prev, concisePitch: e.target.value }))}
+                    className="w-full p-4 bg-slate-900 border border-cyan-500/20 focus:border-cyan-400 rounded-lg text-slate-100 font-sans text-sm leading-relaxed resize-y focus:outline-none"
+                  />
+                  <div className="text-[11px] text-slate-400">Best for LinkedIn InMail, Greenhouse/Lever "Additional Info" boxes, and direct founder emails.</div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-slate-950 border border-emerald-500/30 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      繁體中文精準求職信（專攻 104 人力銀行 / CakeResume / 亞太職缺）
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDownloadLetter(activeLetters.zhTwLetter, 'TW_104')}
+                        className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-white bg-slate-800 px-2 py-1 rounded transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>.TXT</span>
+                      </button>
+                      <button
+                        onClick={() => handleCopy(activeLetters.zhTwLetter, 'letter-zhtw')}
+                        className="flex items-center gap-1 text-[11px] text-emerald-200 hover:text-white bg-emerald-900/60 border border-emerald-500/40 px-2.5 py-1 rounded transition"
+                      >
+                        {copiedKey === 'letter-zhtw' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedKey === 'letter-zhtw' ? '已複製' : '一鍵複製'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    rows={13}
+                    value={activeLetters.zhTwLetter}
+                    onChange={(e) => setEditedDrafts((prev) => ({ ...prev, zhTwLetter: e.target.value }))}
+                    className="w-full p-4 bg-slate-900 border border-emerald-500/20 focus:border-emerald-400 rounded-lg text-slate-100 font-sans text-sm leading-relaxed resize-y focus:outline-none"
+                  />
+                  <div className="text-[11px] text-slate-400">可直接在右側編修後複製貼上 104 應徵留言或 CakeResume 求職信欄位。</div>
+                </div>
+              )}
             </div>
           )}
 

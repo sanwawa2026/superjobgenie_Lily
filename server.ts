@@ -394,7 +394,7 @@ Return ONLY a valid JSON object matching this exact schema:
 }`;
 
     if (process.env.GEMINI_API_KEY) {
-      const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const candidateModels = ['gemini-4-hydrogen', 'gemini-2.5-flash'];
       for (const modelName of candidateModels) {
         try {
           const response = await ai.models.generateContent({
@@ -425,6 +425,105 @@ Return ONLY a valid JSON object matching this exact schema:
   } catch (error: any) {
     console.error('Error in /api/analyze-match:', error);
     return res.status(500).json({ error: error?.message || 'Match analysis failed' });
+  }
+});
+
+// POST /api/refine-cover-letter: Gemini 4 Hydrogen Tailored Cover Letter Refinement
+app.post('/api/refine-cover-letter', async (req: Request, res: Response) => {
+  try {
+    const {
+      jobTitle,
+      company,
+      location,
+      jobDescription,
+      resumeText,
+      candidateName,
+      candidateTitle,
+      yearsOfExperience,
+      verifiedSkills,
+      tone = 'standard',
+    } = req.body || {};
+
+    if (!jobTitle && !jobDescription) {
+      return res.status(400).json({ success: false, error: 'Job title or description is required.' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({ success: false, error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const safeCompany = (company || 'Hiring Team').replace(/\s?\d+(\.\d+)?★?$/, '').trim();
+    const safeName =
+      candidateName && candidateName !== 'Candidate Profile' && !String(candidateName).includes('PII Scrubbed')
+        ? candidateName
+        : candidateTitle || 'Senior Specialist';
+
+    const toneInstruction =
+      tone === 'concise'
+        ? 'Write a punchy, 140-170 word cold recruiter message / direct application note. Zero fluff, immediate proof of impact.'
+        : tone === 'executive'
+        ? 'Write a structured 4-part Executive Application Brief (Value Proposition, Quantified Evidence Matrix, Strategic Fit, Next Step).'
+        : tone === 'zh_tw'
+        ? '以繁體中文（台灣 104 / CakeResume 專業職場風格）撰寫求職信，避免翻譯腔，直接結合履歷具體成果與職缺關鍵要求。'
+        : 'Write a crisp, human-sounding 3-tier professional cover letter (220-280 words). Avoid generic AI cliches like "I am thrilled to apply" or "[Your Name]".';
+
+    const prompt = `You are an elite executive career strategist. Write BOTH a standard/targeted version ("primaryLetter") and an executive brief ("executiveLetter") for this real application.
+
+Target Role: ${jobTitle || 'Target Position'}
+Company: ${safeCompany}
+Location: ${location || 'Hybrid / Remote'}
+Candidate Sign-off Name: ${safeName}
+Candidate Role & Tenure: ${candidateTitle || 'Specialist'} (${yearsOfExperience || 10}+ years)
+Verified Overlapping Skills: ${JSON.stringify(verifiedSkills || [])}
+
+Style Requirement: ${toneInstruction}
+Strict Rules:
+1. NEVER output bracket placeholders like [Your Name], [Company], [Email], or [Insert Skill].
+2. Match the exact domain of the JD (if Finance/Acquisitions, use underwriting/DCF/due diligence language; if Civil/Architecture, use BIM/CAD/constructability; if Product/Data, use experimentation/SQL/metrics; if Software, use systems/latency/reliability).
+3. Pull real quantified achievements from the candidate resume below when available.
+
+Job Description:
+"""
+${String(jobDescription || '').slice(0, 5000)}
+"""
+
+Candidate Resume:
+"""
+${String(resumeText || '').slice(0, 5000)}
+"""`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            primaryLetter: { type: Type.STRING },
+            executiveLetter: { type: Type.STRING },
+            concisePitch: { type: Type.STRING },
+            zhTwLetter: { type: Type.STRING },
+          },
+          required: ['primaryLetter', 'executiveLetter', 'concisePitch', 'zhTwLetter'],
+        },
+        temperature: 0.35,
+      },
+    });
+
+    const parsed = JSON.parse((response.text ?? '{}').trim());
+    return res.json({
+      success: true,
+      data: {
+        tier3Free: parsed.primaryLetter,
+        tier4Pro: parsed.executiveLetter,
+        concisePitch: parsed.concisePitch,
+        zhTwLetter: parsed.zhTwLetter,
+      },
+    });
+  } catch (error: any) {
+    console.warn('Error in /api/refine-cover-letter:', error?.message || error);
+    return res.status(500).json({ success: false, error: 'Failed to refine cover letter' });
   }
 });
 
@@ -1065,8 +1164,33 @@ I am eager to apply this battle-tested engineering precision to train, benchmark
     },
     resumeRewrites: [],
     coverLetters: {
-      tier3Free: 'Professional SWE Cover Letter...',
-      tier4Pro: 'Executive FAANG Pitch Letter...'
+      tier3Free: `Dear ${actualCompany} Engineering Hiring Team,
+
+I am applying for the ${actualTitle} role at ${actualCompany}. With 15+ years architecting distributed backend services, high-concurrency APIs, and resilient cloud infrastructure, I focus on turning complex scaling challenges into reliable, observable production systems.
+
+Across my engineering leadership, I decomposed legacy monoliths into 20+ microservices supporting 10W+ DAU and 5,000+ RPS, hardened Redis caching and PostgreSQL query plans to maintain 99.99% availability, and automated CI/CD pipelines across Kubernetes clusters.
+
+I welcome a conversation to walk through concrete architectural trade-offs and how I can support ${actualCompany}'s reliability roadmap from week one.
+
+Sincerely,
+Senior Distributed Systems Engineer`,
+      tier4Pro: `EXECUTIVE APPLICATION BRIEF: ${actualTitle.toUpperCase()}
+Target Organization: ${actualCompany.toUpperCase()}
+Candidate: Senior Distributed Systems & Backend Architect (15+ Years Experience)
+
+1. DAY-ONE VALUE PROPOSITION
+Engineering teams scaling under heavy concurrency need architecture ownership that prevents incidents before they reach production. I combine deep Java/Go/Spring Boot fluency with AWS and Kubernetes infrastructure discipline.
+
+2. QUANTIFIED ENGINEERING EVIDENCE
+• High-Throughput Scale: Architected 20+ isolated microservices sustaining 5,000+ RPS and 10W+ DAU at 99.99% uptime.
+• Data & Cache Reliability: Tuned Redis distributed caching and PostgreSQL indexing to eliminate tail-latency spikes.
+• Delivery Velocity: CKA-certified Kubernetes workflows with automated CI/CD and strict contract testing.
+
+3. NEXT STEP
+I welcome a focused system-design discussion to share specific architecture benchmarks relevant to ${actualCompany}.
+
+Respectfully submitted,
+Senior Distributed Systems Engineer`
     }
   };
 }
